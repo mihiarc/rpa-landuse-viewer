@@ -1,1 +1,7 @@
 data/database/mysql_data/
+RDS-2023-0026/Data/county_landuse_projections_RPA.rds
+RDS-2023-0026/Data/county_landuse_projections_RPA.json
+*.rds
+*.json
+*.parquet
+.DS_Store
