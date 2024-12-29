@@ -1,15 +1,26 @@
 from fastapi import FastAPI, Query, HTTPException, Depends, status, Request
 from typing import List, Optional
+from contextlib import asynccontextmanager
 from .database import DatabaseConnection
 from .models import LandUseTransition, ScenarioInfo, TimeStep, County, DataVersion
 from .cache import init_cache, cache_key_builder, CACHE_EXPIRE_SCENARIOS, CACHE_EXPIRE_COUNTIES, CACHE_EXPIRE_TIMESTEPS
 from .rate_limit import limiter, rate_limit_exceeded_handler, RATE_LIMIT_DEFAULT, RATE_LIMIT_DATA
-from .validation import validator, validation_middleware
+from .validation import validator, ValidationMiddleware
 from fastapi_cache.decorator import cache
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 import mysql.connector
 from datetime import datetime
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for FastAPI application."""
+    # Startup
+    await init_cache()
+    await validator.initialize()
+    yield
+    # Shutdown
+    # Add any cleanup code here if needed
 
 app = FastAPI(
     title="RPA Land Use Change API",
@@ -21,23 +32,16 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
+    lifespan=lifespan
 )
 
 # Add middleware
-app.middleware("http")(validation_middleware)
+app.add_middleware(ValidationMiddleware)
 
 # Add rate limiter to the app
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on startup."""
-    # Initialize cache
-    await init_cache()
-    # Initialize validator
-    await validator.initialize()
 
 @app.get(
     "/health",
@@ -111,31 +115,31 @@ async def get_transitions(
     scenario: Optional[str] = Query(
         None,
         description="Filter by scenario name",
-        example="CNRM_CM5_rcp45_ssp1"
+        examples=["CNRM_CM5_rcp45_ssp1"]
     ),
     year: Optional[int] = Query(
         None,
         description="Filter by year",
-        example=2030,
+        examples=[2030],
         ge=2020,
         le=2050
     ),
     fips: Optional[str] = Query(
         None,
         description="Filter by county FIPS code",
-        example="36001",
+        examples=["36001"],
         min_length=5,
         max_length=5
     ),
     from_use: Optional[str] = Query(
         None,
         description="Filter by original land use type",
-        example="cr"
+        examples=["cr"]
     ),
     to_use: Optional[str] = Query(
         None,
         description="Filter by new land use type",
-        example="ur"
+        examples=["ur"]
     )
 ):
     """

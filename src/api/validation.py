@@ -4,6 +4,8 @@ import re
 from datetime import datetime
 import mysql.connector
 from .database import DatabaseConnection
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 class DataValidator:
     """Data validation service for the RPA Land Use API."""
@@ -107,25 +109,33 @@ class DataValidator:
 # Global validator instance
 validator = DataValidator()
 
-async def validation_middleware(request: Request, call_next):
-    """Middleware to validate request parameters."""
-    # Refresh validation data if needed
-    validator._refresh_validation_data()
+class ValidationMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        """Middleware to validate request parameters."""
+        try:
+            # Refresh validation data if needed
+            validator._refresh_validation_data()
 
-    # Get query parameters
-    params = dict(request.query_params)
-    
-    # Validate parameters based on the endpoint
-    path = request.url.path
-    
-    if path == "/transitions":
-        validator.validate_scenario(params.get("scenario"))
-        if "year" in params:
-            validator.validate_year(int(params["year"]))
-        validator.validate_fips(params.get("fips"))
-        validator.validate_land_use(params.get("from_use"), "from_use")
-        validator.validate_land_use(params.get("to_use"), "to_use")
-    
-    # Continue with the request
-    response = await call_next(request)
-    return response 
+            # Get query parameters
+            params = dict(request.query_params)
+            
+            # Validate parameters based on the endpoint
+            path = request.url.path
+            
+            if path == "/transitions":
+                validator.validate_scenario(params.get("scenario"))
+                if "year" in params:
+                    validator.validate_year(int(params["year"]))
+                validator.validate_fips(params.get("fips"))
+                validator.validate_land_use(params.get("from_use"), "from_use")
+                validator.validate_land_use(params.get("to_use"), "to_use")
+            
+            # Continue with the request
+            response = await call_next(request)
+            return response
+        except HTTPException as exc:
+            return Response(
+                content=str({"detail": exc.detail}),
+                status_code=exc.status_code,
+                media_type="application/json"
+            ) 
