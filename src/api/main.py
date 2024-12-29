@@ -2,6 +2,8 @@ from fastapi import FastAPI, Query, HTTPException, Depends, status
 from typing import List, Optional
 from .database import DatabaseConnection
 from .models import LandUseTransition, ScenarioInfo, TimeStep, County, DataVersion
+from .cache import init_cache, cache_key_builder, CACHE_EXPIRE_SCENARIOS, CACHE_EXPIRE_COUNTIES, CACHE_EXPIRE_TIMESTEPS
+from fastapi_cache.decorator import cache
 import mysql.connector
 from datetime import datetime
 
@@ -17,6 +19,11 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json"
 )
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize cache on startup."""
+    await init_cache()
 
 @app.get(
     "/health",
@@ -44,6 +51,7 @@ async def health_check():
     status_code=status.HTTP_200_OK,
     tags=["Data"]
 )
+@cache(expire=CACHE_EXPIRE_SCENARIOS, key_builder=cache_key_builder)
 async def get_scenarios():
     """
     Retrieve all available climate scenarios.
@@ -188,6 +196,7 @@ async def get_transitions(
     status_code=status.HTTP_200_OK,
     tags=["Data"]
 )
+@cache(expire=CACHE_EXPIRE_TIMESTEPS, key_builder=cache_key_builder)
 async def get_time_steps():
     """
     Retrieve all available time periods.
@@ -225,6 +234,7 @@ async def get_time_steps():
     status_code=status.HTTP_200_OK,
     tags=["Data"]
 )
+@cache(expire=CACHE_EXPIRE_COUNTIES, key_builder=cache_key_builder)
 async def get_counties():
     """
     Retrieve all available counties.
