@@ -1,7 +1,34 @@
-data/database/mysql_data/
-RDS-2023-0026/Data/county_landuse_projections_RPA.rds
-RDS-2023-0026/Data/county_landuse_projections_RPA.json
-*.rds
-*.json
-*.parquet
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.env
+.venv
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 .DS_Store
+
+# Project specific
+data/database/mysql_data/
+data/database/._mysql_data
+*.parquet
+*.tar.gz
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log

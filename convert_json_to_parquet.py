@@ -1,7 +1,10 @@
+"""Convert RPA land use data from JSON to Parquet format."""
+
 import json
 import pandas as pd
 import numpy as np
 from pathlib import Path
+import argparse
 
 def load_json_data(file_path):
     """Load JSON file into Python."""
@@ -101,20 +104,24 @@ def save_to_parquet(df, output_path):
     print(f"File saved successfully! Size: {Path(output_path).stat().st_size / (1024*1024):.1f} MB")
 
 def main():
-    # Set up paths
-    input_file = "RDS-2023-0026/Data/county_landuse_projections_RPA.json"
-    output_file = "rpa_landuse_data.parquet"
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Convert RPA land use data from JSON to Parquet format.')
+    parser.add_argument('--input', default='data/raw/county_landuse_projections_RPA.json',
+                      help='Input JSON file path')
+    parser.add_argument('--output', default='rpa_landuse_data.parquet',
+                      help='Output Parquet file path')
+    args = parser.parse_args()
     
     # Create output directory if it doesn't exist
-    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     
     # Process the data
-    data = load_json_data(input_file)
+    data = load_json_data(args.input)
     df = convert_to_dataframe(data)
-    save_to_parquet(df, output_file)
+    save_to_parquet(df, args.output)
     
     print("\nData conversion completed successfully!")
-    print(f"Output saved to: {output_file}")
+    print(f"Output saved to: {args.output}")
     print("\nDataFrame Info:")
     print(df.info())
     print("\nSample of unique values:")

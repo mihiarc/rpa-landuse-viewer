@@ -5,6 +5,8 @@ import os
 import mysql.connector
 from typing import Generator, Dict, Any
 import json
+from src.api.cache import init_cache
+from src.api.validation import validator
 
 # Test database configuration
 TEST_DB_CONFIG = {
@@ -61,9 +63,18 @@ def sample_county() -> Dict[str, Any]:
 
 @pytest.fixture(autouse=True)
 async def setup_test_cache():
-    """Setup test cache configuration."""
+    """Setup test cache configuration and initialize services."""
+    # Set Redis URL for testing
     os.environ['REDIS_URL'] = 'redis://localhost:6379/1'  # Use database 1 for testing
+    
+    # Initialize cache
+    await init_cache()
+    
+    # Initialize validator with test data
+    await validator.initialize()
+    
     yield
+    
     # Cleanup will happen automatically
 
 @pytest.fixture(autouse=True)

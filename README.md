@@ -1,96 +1,285 @@
 # RPA Land Use Change Data Processing
 
-This repository contains tools for processing and analyzing RPA (Resources Planning Act) land use change projection data. The data represents land use transitions across different scenarios, years, and counties in the United States.
+This repository contains tools for processing and analyzing the USDA Forest Service's Resources Planning Act (RPA) land use change projection data. The dataset provides county-level land use transition projections for the conterminous United States from 2020 to 2070.
 
-## Data Structure
+## Dataset Overview
 
-The original data is stored in an R data file (RDS format) with the following nested structure:
+The data represents gross land-use changes projected at the county level, based on an empirical econometric model of observed land-use transitions from 2001-2012 using National Resources Inventory (NRI) data. The projections include:
 
-- Scenarios (multiple climate-socioeconomic scenarios)
-  - Time steps (years from 2020 onwards in 5-year intervals)
-    - Counties (identified by FIPS codes)
-      - Transition matrices (6x6) showing land use changes between categories:
-        - Crop
-        - Pasture
-        - Range
-        - Forest
-        - Urban
-        - Other
+### Scenarios
+The dataset includes 20 unique scenarios combining:
+- Climate Models (GCM):
+  - CNRM_CM5 ("wet" climate model)
+  - HadGEM2_ES365 ("hot" climate model)
+  - IPSL_CM5A_MR ("dry" climate model)
+  - MRI_CGCM3 ("least warm" climate model)
+  - NorESM1_M ("middle" climate model)
 
-The data is converted to a Parquet file with a flat structure containing the following columns:
+- Emissions and Socioeconomic Pathways:
+  - rcp45_ssp1: Low emissions forcing, medium growth
+  - rcp85_ssp2: High emissions forcing, medium growth
+  - rcp85_ssp3: High emissions forcing, low growth
+  - rcp85_ssp5: High emissions forcing, high growth
 
-- `Scenario`: The scenario identifier
-- `Year`: The projection year
-- `FIPS`: County FIPS code
-- `From`: Original land use category
-- `To`: Destination land use category
-- `Acres`: Amount of land transitioning (in acres)
+### Time Periods
+- Calibration period: 2012-2020
+- Projection periods: 2020-2070 in 10-year intervals
+  - 2020-2030
+  - 2030-2040
+  - 2040-2050
+  - 2050-2060
+  - 2060-2070
 
-## Setup
+### Land Use Categories
+Transitions between five main land use types:
+- Cropland
+- Pasture land
+- Rangeland
+- Forest land
+- Urban developed land
 
-1. Create a Python environment:
+### Geographic Coverage
+- All counties in the conterminous United States
+- Counties identified by 5-digit FIPS codes
+
+## Data Processing Pipeline
+
+1. Raw Data (`data/raw/`)
+   - JSON format: `county_landuse_projections_RPA.json`
+   - Units: Land area in hundreds of acres
+   - Includes metadata and variable descriptions
+
+2. Conversion to Parquet
+   - Script: `data/scripts/convert_json_to_parquet.py`
+   - Converts JSON to columnar Parquet format for efficient processing
+   - Output: `rpa_landuse_data.parquet`
+
+3. MySQL Database
+   - Structured tables for scenarios, time steps, counties, and land use transitions
+   - Optimized for querying and analysis
+   - Total records: ~5.4 million land use transitions
+
+## Installation
+
+1. Create and activate a Python virtual environment:
 ```bash
-conda create -n rpa_landuse python=3.9
+# Using conda (recommended)
+conda create -n rpa_landuse python=3.12
 conda activate rpa_landuse
+
+# OR using venv
+python -m venv .venv
+source .venv/bin/activate  # On Linux/Mac
+# .venv\Scripts\activate  # On Windows
 ```
 
-2. Install dependencies:
+2. Install the package in development mode:
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
 
-## Usage
+Required dependencies:
+- FastAPI: REST API framework
+- Pandas: Data processing and analysis
+- MySQL Connector: Database operations
+- Redis: Caching layer
+- PyArrow: Parquet file handling
+- Testing tools (pytest)
 
-### Converting RDS to Parquet
+## Database Setup
 
-To convert the original RDS file to Parquet format:
+The project uses MySQL running in a Docker container:
 
+1. Navigate to the database directory:
 ```bash
-python convert_rds_to_parquet.py
+cd data/database
 ```
 
-This will create a file named `rpa_landuse_data.parquet` containing the processed data.
+2. Build the MySQL Docker image:
+```bash
+docker build -t rpa-mysql -f Dockerfile.dockerfile .
+```
 
-### Loading and Analyzing Data
+3. Start the MySQL container:
+```bash
+docker run -d --name rpa-mysql-container -p 3306:3306 rpa-mysql
+```
 
-The `data_loader.py` module provides functions for working with the converted data:
+4. Verify the container is running:
+```bash
+docker ps | grep mysql
+```
 
+Database credentials:
+- Host: localhost
+- Port: 3306
+- Database: rpa_mysql_db
+- User: mihiarc
+- Password: survista683
+
+Container management:
+```bash
+# Stop the container
+docker stop rpa-mysql-container
+
+# Remove the container
+docker rm rpa-mysql-container
+
+# Start a new container
+docker run -d --name rpa-mysql-container -p 3306:3306 rpa-mysql
+```
+
+## Data Loading
+
+1. Convert JSON to Parquet:
+```bash
+cd data/scripts
+python convert_json_to_parquet.py
+```
+
+2. Load data into MySQL:
+```bash
+python load_to_mysql.py
+```
+
+## Working with Existing Database
+
+If you're joining the project with an existing database setup:
+
+1. set up the Python environment:
+```bash
+# Using conda
+conda create -n rpa_landuse python=3.12
+conda activate rpa_landuse
+
+# OR using venv
+python -m venv .venv
+source .venv/bin/activate  # On Linux/Mac
+# .venv\Scripts\activate  # On Windows
+
+pip install -e .
+```
+
+2. Verify database connection:
+```bash
+# Check if the MySQL container is running
+docker ps | grep mysql
+
+# If not running, start it
+docker start rpa-mysql-container
+```
+
+3. Verify data availability:
+```bash
+# Connect to MySQL and check record count
+docker exec -it rpa-mysql-container mysql -u mihiarc -psurvista683 rpa_mysql_db -e "SELECT COUNT(*) FROM land_use_transitions;"
+```
+
+4. Start the development server:
+```bash
+# From the project root
+uvicorn app.main:app --reload --port 8000
+```
+
+The API will be available at:
+- API endpoints: http://localhost:8000/
+- Interactive documentation: http://localhost:8000/docs
+- Alternative documentation: http://localhost:8000/redoc
+
+### Common Development Tasks
+
+1. Query the database:
 ```python
-from data_loader import load_landuse_data, filter_data, get_unique_values, summarize_transitions
+from app.database import get_db
 
-# Load the data
-df = load_landuse_data()
-
-# Filter data for specific criteria
-filtered_df = filter_data(
-    df,
-    scenario='scenario_1',
-    year=2020,
-    fips='01001'
-)
-
-# Get unique values from a column
-scenarios = get_unique_values(df, 'Scenario')
-
-# Summarize transitions
-summary = summarize_transitions(df, group_by=['Scenario', 'Year'])
+# Example: Get all scenarios
+with get_db() as db:
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM scenarios")
+    scenarios = cursor.fetchall()
 ```
 
-## Testing
-
-Run the unit tests using pytest:
-
+2. Run specific test categories:
 ```bash
-pytest test_data_loader.py
+# Run only API tests
+pytest tests/test_api.py -v
+
+# Run tests with print statements
+pytest -v -s
+
+# Run tests matching a pattern
+pytest -v -k "test_scenario"
 ```
 
-## Data Files
+3. Check API endpoints:
+```bash
+# Get available scenarios
+curl http://localhost:8000/scenarios
 
-- `RDS-2023-0026/Data/county_landuse_projections_RPA.rds`: Original R data file
-- `rpa_landuse_data.parquet`: Converted data in Parquet format
+# Get transitions for a specific county
+curl http://localhost:8000/transitions?fips=01001&scenario=CNRM_CM5_rcp45_ssp1
+```
 
-## Notes
+4. Development utilities:
+```bash
+# Format code
+black .
 
-- The data conversion process preserves all information from the original RDS file while making it more accessible for Python-based analysis.
-- The Parquet format provides efficient storage and fast querying capabilities.
-- All functions include type hints and documentation for better code maintainability. 
+# Check type hints
+mypy .
+
+# Run linter
+flake8
+```
+
+## Development
+
+### Running Tests
+
+Tests are organized in order of dependency:
+1. Validation tests: `pytest tests/test_validation.py`
+2. Basic API tests: `pytest tests/test_api.py`
+3. API endpoint tests: `pytest tests/test_api_endpoints.py`
+4. Data loader tests: `pytest tests/test_data_loader.py`
+
+Run all tests:
+```bash
+pytest -v
+```
+
+### Database Schema
+
+The MySQL database includes the following tables:
+
+1. `scenarios`
+   - scenario_id (PK)
+   - scenario_name
+   - gcm (Global Climate Model)
+   - rcp (Representative Concentration Pathway)
+   - ssp (Shared Socioeconomic Pathway)
+
+2. `time_steps`
+   - time_step_id (PK)
+   - start_year
+   - end_year
+
+3. `counties`
+   - fips_code (PK)
+   - county_name
+
+4. `land_use_transitions`
+   - transition_id (PK)
+   - scenario_id (FK)
+   - time_step_id (FK)
+   - fips_code (FK)
+   - from_land_use
+   - to_land_use
+   - acres
+
+## Data Source
+
+This dataset was developed by the USDA Forest Service for the Resources Planning Act (RPA) 2020 Assessment. For more information, visit: https://doi.org/10.2737/RDS-2023-0026
+
+## License
+
+[Add appropriate license information]

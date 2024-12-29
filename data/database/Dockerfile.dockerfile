@@ -14,8 +14,12 @@ EXPOSE 3306
 # Set the default timezone (optional but recommended)
 ENV TZ=UTC
 
-# Copy the initialization script (explained below)
+# Create MySQL configuration file
+RUN echo "[mysqld]" > /etc/mysql/conf.d/custom.cnf && \
+    echo "lower_case_table_names=2" >> /etc/mysql/conf.d/custom.cnf
+
+# Copy the initialization script
 COPY init.sql /docker-entrypoint-initdb.d/
 
-# Set the command to start MySQL (using the correct command)
+# Set the command to start MySQL
 CMD ["mysqld"]

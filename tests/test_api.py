@@ -53,9 +53,9 @@ async def test_get_transitions_no_params(client):
 async def test_get_transitions_with_filters(client):
     """Test the transitions endpoint with filters"""
     params = {
-        "scenario": "GFDL-ESM4_ssp245_2",
+        "scenario": "CNRM_CM5_rcp45_ssp1",
         "year": 2030,
-        "fips": "25001"
+        "fips": "36001"
     }
     response = client.get("/transitions", params=params)
     assert response.status_code == 200
