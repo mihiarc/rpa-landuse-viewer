@@ -4,6 +4,7 @@ from .database import DatabaseConnection
 from .models import LandUseTransition, ScenarioInfo, TimeStep, County, DataVersion
 from .cache import init_cache, cache_key_builder, CACHE_EXPIRE_SCENARIOS, CACHE_EXPIRE_COUNTIES, CACHE_EXPIRE_TIMESTEPS
 from .rate_limit import limiter, rate_limit_exceeded_handler, RATE_LIMIT_DEFAULT, RATE_LIMIT_DATA
+from .validation import validator, validation_middleware
 from fastapi_cache.decorator import cache
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -23,14 +24,20 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
+# Add middleware
+app.middleware("http")(validation_middleware)
+
 # Add rate limiter to the app
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize cache on startup."""
+    """Initialize services on startup."""
+    # Initialize cache
     await init_cache()
+    # Initialize validator
+    await validator.initialize()
 
 @app.get(
     "/health",
