@@ -1,9 +1,12 @@
-from fastapi import FastAPI, Query, HTTPException, Depends, status
+from fastapi import FastAPI, Query, HTTPException, Depends, status, Request
 from typing import List, Optional
 from .database import DatabaseConnection
 from .models import LandUseTransition, ScenarioInfo, TimeStep, County, DataVersion
 from .cache import init_cache, cache_key_builder, CACHE_EXPIRE_SCENARIOS, CACHE_EXPIRE_COUNTIES, CACHE_EXPIRE_TIMESTEPS
+from .rate_limit import limiter, rate_limit_exceeded_handler, RATE_LIMIT_DEFAULT, RATE_LIMIT_DATA
 from fastapi_cache.decorator import cache
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 import mysql.connector
 from datetime import datetime
 
@@ -20,6 +23,10 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
+# Add rate limiter to the app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize cache on startup."""
@@ -33,7 +40,8 @@ async def startup_event():
     status_code=status.HTTP_200_OK,
     tags=["System"]
 )
-async def health_check():
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def health_check(request: Request):
     """
     Perform a health check of the API service.
     
@@ -51,8 +59,9 @@ async def health_check():
     status_code=status.HTTP_200_OK,
     tags=["Data"]
 )
+@limiter.limit(RATE_LIMIT_DATA)
 @cache(expire=CACHE_EXPIRE_SCENARIOS, key_builder=cache_key_builder)
-async def get_scenarios():
+async def get_scenarios(request: Request):
     """
     Retrieve all available climate scenarios.
     
@@ -89,7 +98,9 @@ async def get_scenarios():
     status_code=status.HTTP_200_OK,
     tags=["Data"]
 )
+@limiter.limit(RATE_LIMIT_DATA)
 async def get_transitions(
+    request: Request,
     scenario: Optional[str] = Query(
         None,
         description="Filter by scenario name",
@@ -196,8 +207,9 @@ async def get_transitions(
     status_code=status.HTTP_200_OK,
     tags=["Data"]
 )
+@limiter.limit(RATE_LIMIT_DATA)
 @cache(expire=CACHE_EXPIRE_TIMESTEPS, key_builder=cache_key_builder)
-async def get_time_steps():
+async def get_time_steps(request: Request):
     """
     Retrieve all available time periods.
     
@@ -234,8 +246,9 @@ async def get_time_steps():
     status_code=status.HTTP_200_OK,
     tags=["Data"]
 )
+@limiter.limit(RATE_LIMIT_DATA)
 @cache(expire=CACHE_EXPIRE_COUNTIES, key_builder=cache_key_builder)
-async def get_counties():
+async def get_counties(request: Request):
     """
     Retrieve all available counties.
     
