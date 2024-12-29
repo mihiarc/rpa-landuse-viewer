@@ -3,10 +3,10 @@ from typing import List, Optional
 from contextlib import asynccontextmanager
 from .database import DatabaseConnection
 from .models import LandUseTransition, ScenarioInfo, TimeStep, County, DataVersion
-from .cache import init_cache, cache_key_builder, CACHE_EXPIRE_SCENARIOS, CACHE_EXPIRE_COUNTIES, CACHE_EXPIRE_TIMESTEPS
+from .cache import get_redis_connection, initialize_cache
+from .api_cache import cached, CACHE_EXPIRE_SCENARIOS, CACHE_EXPIRE_COUNTIES, CACHE_EXPIRE_TIMESTEPS
 from .rate_limit import limiter, rate_limit_exceeded_handler, RATE_LIMIT_DEFAULT, RATE_LIMIT_DATA
 from .validation import validator, ValidationMiddleware
-from fastapi_cache.decorator import cache
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 import mysql.connector
@@ -16,11 +16,12 @@ from datetime import datetime
 async def lifespan(app: FastAPI):
     """Lifespan context manager for FastAPI application."""
     # Startup
-    await init_cache()
-    await validator.initialize()
-    yield
+    async with get_redis_connection() as redis:
+        await initialize_cache(redis)
+        await validator.initialize()
+        yield
     # Shutdown
-    # Add any cleanup code here if needed
+    # Cache cleanup is handled by the context manager
 
 app = FastAPI(
     title="RPA Land Use Change API",
@@ -71,7 +72,7 @@ async def health_check(request: Request):
     tags=["Data"]
 )
 @limiter.limit(RATE_LIMIT_DATA)
-@cache(expire=CACHE_EXPIRE_SCENARIOS, key_builder=cache_key_builder)
+@cached(expire=CACHE_EXPIRE_SCENARIOS)
 async def get_scenarios(request: Request):
     """
     Retrieve all available climate scenarios.
@@ -219,7 +220,7 @@ async def get_transitions(
     tags=["Data"]
 )
 @limiter.limit(RATE_LIMIT_DATA)
-@cache(expire=CACHE_EXPIRE_TIMESTEPS, key_builder=cache_key_builder)
+@cached(expire=CACHE_EXPIRE_TIMESTEPS)
 async def get_time_steps(request: Request):
     """
     Retrieve all available time periods.
@@ -258,7 +259,7 @@ async def get_time_steps(request: Request):
     tags=["Data"]
 )
 @limiter.limit(RATE_LIMIT_DATA)
-@cache(expire=CACHE_EXPIRE_COUNTIES, key_builder=cache_key_builder)
+@cached(expire=CACHE_EXPIRE_COUNTIES)
 async def get_counties(request: Request):
     """
     Retrieve all available counties.

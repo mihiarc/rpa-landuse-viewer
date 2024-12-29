@@ -1,11 +1,15 @@
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
 from src.api.main import app
 import os
 import mysql.connector
 from typing import Generator, Dict, Any
 import json
-from src.api.cache import init_cache
+import asyncio
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from src.api.cache import get_redis_connection
 from src.api.validation import validator
 
 # Test database configuration
@@ -15,6 +19,44 @@ TEST_DB_CONFIG = {
     'password': os.getenv('TEST_DB_PASSWORD', 'test_password'),
     'database': os.getenv('TEST_DB_NAME', 'rpa_test_db')
 }
+
+@pytest_asyncio.fixture(scope="function")
+async def initialized_cache():
+    """Initialize FastAPI cache with Redis backend."""
+    # Set environment to testing
+    os.environ["ENV"] = "testing"
+    
+    async with get_redis_connection() as redis:
+        # Initialize cache based on whether FastAPICache.init is async or not
+        if asyncio.iscoroutinefunction(FastAPICache.init):
+            await FastAPICache.init(
+                RedisBackend(redis),
+                prefix="fastapi-cache"
+            )
+        else:
+            def init_sync():
+                FastAPICache.init(
+                    RedisBackend(redis),
+                    prefix="fastapi-cache"
+                )
+            await asyncio.to_thread(init_sync)
+            
+        await validator.initialize()
+        yield
+        
+        # Cleanup
+        if hasattr(FastAPICache, 'close'):
+            await FastAPICache.close()
+
+@pytest.fixture(autouse=True)
+def mock_rate_limit(monkeypatch):
+    """Disable rate limiting for tests."""
+    def mock_limit(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+    
+    monkeypatch.setattr("src.api.rate_limit.limiter.limit", mock_limit)
 
 @pytest.fixture
 def test_client() -> Generator:
@@ -59,30 +101,4 @@ def sample_county() -> Dict[str, Any]:
     """Return a sample county for testing."""
     return {
         "fips_code": "36001"
-    }
-
-@pytest.fixture(autouse=True)
-async def setup_test_cache():
-    """Setup test cache configuration and initialize services."""
-    # Set Redis URL for testing
-    os.environ['REDIS_URL'] = 'redis://localhost:6379/1'  # Use database 1 for testing
-    
-    # Initialize cache
-    await init_cache()
-    
-    # Initialize validator with test data
-    await validator.initialize()
-    
-    yield
-    
-    # Cleanup will happen automatically
-
-@pytest.fixture(autouse=True)
-def mock_rate_limit(monkeypatch):
-    """Disable rate limiting for tests."""
-    def mock_limit(*args, **kwargs):
-        def decorator(func):
-            return func
-        return decorator
-    
-    monkeypatch.setattr("src.api.rate_limit.limiter.limit", mock_limit) 
+    } 

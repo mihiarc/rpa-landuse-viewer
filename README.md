@@ -61,7 +61,30 @@ Transitions between five main land use types:
 
 ## Installation
 
-1. Create and activate a Python virtual environment:
+1. Install system dependencies:
+```bash
+# On Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install redis-server redis-tools
+
+# On macOS
+brew install redis
+
+# On Windows
+# Download the Redis installer from https://github.com/microsoftarchive/redis/releases
+```
+
+2. Start Redis server:
+```bash
+# On Ubuntu/Debian/macOS
+sudo systemctl start redis-server  # Or: brew services start redis
+redis-cli ping  # Should return PONG
+
+# On Windows
+# Redis will start automatically as a Windows service
+```
+
+3. Create and activate a Python virtual environment:
 ```bash
 # Using conda (recommended)
 conda create -n rpa_landuse python=3.12
@@ -88,9 +111,21 @@ Required dependencies:
 
 ## Database Setup
 
-The project uses MySQL running in a Docker container:
+The project requires both MySQL and Redis:
 
-1. Navigate to the database directory:
+1. Start Redis (if not already running):
+```bash
+sudo systemctl start redis-server
+redis-cli ping  # Verify Redis is running
+```
+
+Redis configuration:
+- Host: localhost
+- Port: 6379
+- No authentication required for development
+- Used for API response caching
+
+2. Navigate to the database directory:
 ```bash
 cd data/database
 ```

@@ -1,37 +1,85 @@
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
-from fastapi_cache.decorator import cache
 from redis import asyncio as aioredis
-from typing import Optional
-import os
-from datetime import timedelta
+from fastapi import Depends
+from contextlib import asynccontextmanager
+from .config import Config
+import logging
+from functools import wraps
+import asyncio
 
-# Cache expiration times (in seconds)
-CACHE_EXPIRE_SCENARIOS = int(os.getenv('CACHE_EXPIRE_SCENARIOS', 3600))  # 1 hour
-CACHE_EXPIRE_COUNTIES = int(os.getenv('CACHE_EXPIRE_COUNTIES', 86400))   # 24 hours
-CACHE_EXPIRE_TIMESTEPS = int(os.getenv('CACHE_EXPIRE_TIMESTEPS', 86400)) # 24 hours
-CACHE_EXPIRE_DEFAULT = int(os.getenv('CACHE_EXPIRE_DEFAULT', 300))       # 5 minutes
+logger = logging.getLogger(__name__)
 
-async def init_cache():
-    """Initialize the Redis cache backend."""
-    redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-    redis = aioredis.from_url(redis_url, encoding="utf8", decode_responses=True)
-    FastAPICache.init(RedisBackend(redis), prefix="rpa_api_cache:")
+@asynccontextmanager
+async def get_redis_connection():
+    """Create and manage Redis connection lifecycle."""
+    redis = None
+    try:
+        # Get and validate Redis configuration
+        redis_config = Config.get_redis_config()
+        if not redis_config:
+            raise ValueError("Failed to retrieve Redis configuration")
+        
+        # Validate required configuration fields
+        required_fields = ['host', 'port']
+        missing_fields = [field for field in required_fields if field not in redis_config]
+        if missing_fields:
+            raise ValueError(f"Missing required Redis configuration fields: {', '.join(missing_fields)}")
+        
+        # Build the connection string
+        redis_url = f"redis://{redis_config['host']}:{redis_config['port']}"
+        if 'db' in redis_config:
+            redis_url += f"/{redis_config['db']}"
+            
+        logger.info(f"Connecting to Redis at {redis_url}")
+        
+        # Initialize Redis client
+        redis = aioredis.from_url(
+            redis_url,
+            encoding="utf8",
+            decode_responses=True
+        )
+        
+        # Test the connection
+        await redis.ping()
+        logger.info("Redis connection established successfully")
+        yield redis
+    except (ValueError, aioredis.RedisError) as e:
+        logger.error(f"Failed to connect to Redis: {e}")
+        raise
+    finally:
+        if redis:
+            try:
+                await redis.aclose()
+                logger.info("Redis connection closed successfully")
+            except Exception as e:
+                logger.error(f"Error closing Redis connection: {e}")
 
-def cache_key_builder(
-    func,
-    namespace: Optional[str] = "",
-    *args,
-    **kwargs,
-):
-    """Custom cache key builder that includes query parameters."""
-    # Create base cache key from function name and namespace
-    cache_key = f"{namespace}:{func.__module__}:{func.__name__}"
-    
-    # Add query parameters to cache key if they exist
-    if kwargs:
-        param_strings = [f"{k}={v}" for k, v in sorted(kwargs.items()) if v is not None]
-        if param_strings:
-            cache_key = f"{cache_key}:{','.join(param_strings)}"
-    
-    return cache_key 
+async def initialize_cache(redis: aioredis.Redis):
+    """Initialize FastAPI cache with provided Redis client."""
+    try:
+        # Create a new event loop for sync operations if needed
+        def init_sync():
+            FastAPICache.init(
+                RedisBackend(redis), 
+                prefix="fastapi-cache"
+            )
+        
+        # Run sync initialization in a thread if needed
+        if asyncio.iscoroutinefunction(FastAPICache.init):
+            await FastAPICache.init(
+                RedisBackend(redis), 
+                prefix="fastapi-cache"
+            )
+        else:
+            await asyncio.to_thread(init_sync)
+            
+        logger.info("FastAPI cache initialized successfully")
+        return FastAPICache
+    except Exception as e:
+        logger.error(f"Failed to initialize FastAPI cache: {e}")
+        raise
+
+async def get_cache(redis: aioredis.Redis = Depends(get_redis_connection)):
+    """Dependency for getting initialized cache."""
+    return await initialize_cache(redis) 
