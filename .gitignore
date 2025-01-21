@@ -32,3 +32,54 @@ htmlcov/
 
 # Logs
 *.log
+
+# Large files and datasets
+*.csv
+*.xlsx
+*.xls
+*.zip
+*.rar
+*.7z
+*.gz
+*.tar
+*.dump
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+*.hdf5
+*.h5
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.rds
+*.feather
+*.ftr
+*.dta
+*.sav
+*.mat
+*.json
+outputs/*
+!outputs/.gitkeep
+
+# Media files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.ico
+*.svg
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.tiff
+*.bmp
+*.pdf
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
