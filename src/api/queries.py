@@ -672,4 +672,52 @@ class LandUseQueries:
                 'negative_acres': negative_acres
             }
 
+    @staticmethod
+    def rank_scenarios_by_forest_loss(
+        target_year: int,
+        climate_model: str = 'NorESM1_M'
+    ) -> List[Dict[str, Any]]:
+        """
+        Query III.10: Rank emissions scenarios based on projected forest loss.
+        
+        Args:
+            target_year: Target year for analysis (e.g., 2070)
+            climate_model: Climate model to analyze (defaults to 'middle' model)
+            
+        Returns:
+            List of dictionaries containing scenario info and forest loss metrics
+        """
+        with DatabaseConnection.get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            
+            query = """
+                WITH forest_changes AS (
+                    SELECT 
+                        s.scenario_name,
+                        s.rcp as emissions_forcing,
+                        s.ssp as socioeconomic_pathway,
+                        SUM(CASE WHEN t.from_land_use = 'Forest' THEN t.acres ELSE 0 END) as forest_loss,
+                        SUM(CASE WHEN t.to_land_use = 'Forest' THEN t.acres ELSE 0 END) as forest_gain
+                    FROM land_use_transitions t
+                    JOIN scenarios s ON t.scenario_id = s.scenario_id
+                    JOIN time_steps ts ON t.time_step_id = ts.time_step_id
+                    WHERE s.gcm = %s
+                    AND ts.end_year <= %s
+                    GROUP BY s.scenario_name, s.rcp, s.ssp
+                )
+                SELECT 
+                    scenario_name,
+                    emissions_forcing,
+                    socioeconomic_pathway,
+                    forest_loss,
+                    forest_gain,
+                    forest_loss - forest_gain as net_forest_loss,
+                    RANK() OVER (ORDER BY (forest_loss - forest_gain) DESC) as loss_rank
+                FROM forest_changes
+                ORDER BY loss_rank ASC
+            """
+            
+            cursor.execute(query, [climate_model, target_year])
+            return cursor.fetchall()
+
     # More query methods will be added for each section... 

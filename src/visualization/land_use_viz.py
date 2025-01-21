@@ -261,3 +261,63 @@ class LandUseVisualization:
         )
         
         return fig 
+
+    @staticmethod
+    def create_scenario_ranking_plot(
+        target_year: int,
+        climate_model: str = 'NorESM1_M'
+    ) -> go.Figure:
+        """
+        Create a visualization of scenario rankings based on forest loss.
+        
+        Args:
+            target_year: Target year for analysis
+            climate_model: Climate model to analyze
+            
+        Returns:
+            Plotly figure object
+        """
+        # Get scenario rankings
+        rankings = LandUseQueries.rank_scenarios_by_forest_loss(target_year, climate_model)
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add bars for net forest loss
+        fig.add_trace(go.Bar(
+            name='Net Forest Loss',
+            x=[f"{r['scenario_name']}<br>({r['emissions_forcing']}, {r['socioeconomic_pathway']})" 
+               for r in rankings],
+            y=[r['net_forest_loss'] for r in rankings],
+            text=[f"Rank {r['loss_rank']}" for r in rankings],
+            textposition='auto',
+            marker_color=['#ff9999' if r['loss_rank'] <= 3 else '#99ff99' 
+                         for r in rankings]
+        ))
+        
+        # Add markers for forest gain
+        fig.add_trace(go.Scatter(
+            name='Forest Gain',
+            x=[f"{r['scenario_name']}<br>({r['emissions_forcing']}, {r['socioeconomic_pathway']})" 
+               for r in rankings],
+            y=[r['forest_gain'] for r in rankings],
+            mode='markers',
+            marker=dict(
+                size=12,
+                symbol='diamond',
+                color='green'
+            )
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title=f'Scenario Rankings by Forest Loss (through {target_year})<br>Climate Model: {climate_model}',
+            xaxis_title='Scenario',
+            yaxis_title='Acres',
+            barmode='relative',
+            showlegend=True,
+            height=600,
+            xaxis=dict(tickangle=45)
+        )
+        
+        return fig 
