@@ -11,7 +11,11 @@ setup(
         "pytest",
         "mysql-connector-python",
         "redis",
-        "pyarrow"
+        "pyarrow",
+        "tqdm",
+        "python-dotenv",
+        "fastapi",
+        "uvicorn"
     ],
     python_requires=">=3.8",
 ) 
