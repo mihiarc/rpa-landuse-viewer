@@ -283,3 +283,44 @@ Once the app is running, you can ask questions about the data such as:
 - "What's the top destination for converted forest land?"
 - "Show me a bar chart of acres by land use type"
 - "Calculate the percentage change for each land use type"
+
+## Geographic Data Hierarchy
+
+The RPA Land Use Viewer includes a hierarchical geographic data structure that organizes spatial data across multiple administrative levels:
+
+### Geographic Levels
+
+1. **Counties**: The base level of geographic data, using 5-digit FIPS codes
+2. **States**: Groups counties by state using the first 2 digits of the county FIPS code
+3. **Sub-regions**: (Future implementation) Will group states into logical geographical regions
+4. **Regions**: (Future implementation) Will group sub-regions into major regions
+
+### Implementation Details
+
+The database schema implements this hierarchy using:
+
+- **Direct Relationships**: Counties are linked to states via the FIPS code prefix (first 2 digits)
+- **Recursive Common Table Expression (CTE)**: The `region_hierarchy` view uses a recursive CTE to navigate the geographic hierarchy from counties up to states (and later to regions)
+- **Views**: Multiple database views provide aggregated data at different geographic levels
+
+### Key Features
+
+- **Flexible Filtering**: The UI allows filtering by national, state, or county levels
+- **Aggregation**: Data can be viewed at any level of the hierarchy with appropriate aggregation
+- **Relational Integrity**: Foreign key constraints and indexes ensure data consistency across levels
+- **Extendable**: The schema is designed to easily accommodate additional hierarchical levels
+
+### Example Usage
+
+```sql
+-- Get all counties in a state
+SELECT * FROM counties_by_state WHERE state_fips = '06';
+
+-- Get aggregated land use data at the state level
+SELECT * FROM state_land_use_summary 
+WHERE scenario_id = 1 AND state_fips = '06';
+
+-- Use the hierarchical view to traverse the geography tree
+SELECT * FROM region_hierarchy 
+WHERE parent_id = '06' AND region_type = 'COUNTY';
+```

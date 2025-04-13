@@ -16,15 +16,18 @@ def setup_database():
     # The fixture yields control to the tests
     yield
     
-    # Teardown phase - clean up database connection
+    # Teardown phase - no explicit cleanup needed since we close connections after each use
     print("Tearing down database connection")
-    DatabaseConnection.close_connection()
+    # DatabaseConnection handles its own cleanup
 
 
 @pytest.fixture(scope="session")
 def db_connection():
     """Return a database connection for tests."""
-    return DatabaseConnection.get_connection()
+    conn = DatabaseConnection.get_connection()
+    yield conn
+    # Close the connection when the session ends
+    DatabaseConnection.close_connection(conn)
 
 
 @pytest.fixture(scope="function")
@@ -33,4 +36,4 @@ def db_cursor(db_connection):
     cursor = db_connection.cursor()
     yield cursor
     # No need to close the cursor as it's associated with the connection
-    # that will be closed by setup_database fixture 
+    # that will be closed by db_connection fixture 

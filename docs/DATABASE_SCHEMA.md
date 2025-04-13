@@ -24,6 +24,11 @@ erDiagram
         int start_year "INTEGER NOT NULL"
         int end_year "INTEGER NOT NULL"
     }
+    STATES {
+        string state_fips PK "TEXT PRIMARY KEY"
+        string state_name "TEXT NOT NULL"
+        string state_abbr "TEXT NOT NULL"
+    }
     COUNTIES {
         string fips_code PK "TEXT PRIMARY KEY"
         string county_name "TEXT"
@@ -40,6 +45,7 @@ erDiagram
     
     SCENARIOS ||--o{ LAND_USE_TRANSITIONS : "has"
     TIME_STEPS ||--o{ LAND_USE_TRANSITIONS : "contains"
+    STATES ||--o{ COUNTIES : "contains"
     COUNTIES ||--o{ LAND_USE_TRANSITIONS : "includes"
 ```
 
@@ -69,7 +75,17 @@ Stores information about the time periods for land use projections.
 
 The table includes a UNIQUE constraint on (start_year, end_year) to prevent duplicate time steps.
 
-### 3. `counties` (3,068 records)
+### 3. `states` (56 records)
+
+Stores information about US states and territories.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| state_fips | TEXT PRIMARY KEY | The 2-digit FIPS code for the state |
+| state_name | TEXT NOT NULL | Full name of the state |
+| state_abbr | TEXT NOT NULL | Two letter state abbreviation |
+
+### 4. `counties` (3,068 records)
 
 Stores information about US counties.
 
@@ -78,7 +94,9 @@ Stores information about US counties.
 | fips_code | TEXT PRIMARY KEY | The 5-digit FIPS code for the county |
 | county_name | TEXT | Name of the county |
 
-### 4. `land_use_transitions` (5,432,198 records)
+The first two digits of the FIPS code represent the state FIPS code, establishing a hierarchical relationship between states and counties.
+
+### 5. `land_use_transitions` (5,432,198 records)
 
 Stores information about land use transitions between different land types.
 
@@ -92,14 +110,92 @@ Stores information about land use transitions between different land types.
 | to_land_use | TEXT NOT NULL | New land use type (Crop, Forest, Pasture, Range, Urban) |
 | acres | REAL NOT NULL | Land area in hundreds of acres |
 
+## Views
+
+For efficient querying of hierarchical geographical data, the database includes the following views:
+
+### 1. `county_state_map`
+
+Maps counties to their parent states using the FIPS code relationship.
+
+| Column | Description |
+|--------|-------------|
+| county_fips | The county FIPS code |
+| county_name | Name of the county |
+| state_fips | The state FIPS code (first 2 digits of county FIPS) |
+| state_name | Name of the state |
+| state_abbr | State abbreviation |
+
+### 2. `state_land_use_transitions`
+
+Aggregates land use transitions at the state level.
+
+| Column | Description |
+|--------|-------------|
+| scenario_id | ID of the scenario |
+| scenario_name | Name of the scenario |
+| time_step_id | ID of the time step |
+| start_year | Start year of the time period |
+| end_year | End year of the time period |
+| state_fips | State FIPS code |
+| state_name | Name of the state |
+| state_abbr | State abbreviation |
+| from_land_use | Original land use type |
+| to_land_use | New land use type |
+| acres | Total acres transitioned |
+
+### 3. `region_hierarchy`
+
+Recursive Common Table Expression (CTE) that provides a hierarchical view of geographical entities.
+
+| Column | Description |
+|--------|-------------|
+| region_id | Identifier for the region (either county FIPS or state FIPS) |
+| region_name | Name of the region |
+| region_type | Type of region ('COUNTY' or 'STATE') |
+| parent_id | ID of the parent region (state FIPS for counties, NULL for states) |
+| level | Hierarchy level (0 for counties, 1 for states) |
+
+### 4. `counties_by_state`
+
+Helper view to easily get all counties within a state.
+
+| Column | Description |
+|--------|-------------|
+| state_fips | State FIPS code |
+| state_name | Name of the state |
+| state_abbr | State abbreviation |
+| county_fips | County FIPS code |
+| county_name | Name of the county |
+
+### 5. `state_land_use_summary`
+
+Aggregated metrics for land use by state.
+
+| Column | Description |
+|--------|-------------|
+| scenario_id | ID of the scenario |
+| time_step_id | ID of the time step |
+| state_fips | State FIPS code |
+| state_name | Name of the state |
+| state_abbr | State abbreviation |
+| from_land_use | Original land use type |
+| to_land_use | New land use type |
+| total_acres | Total acres transitioned |
+| county_count | Number of counties with this transition |
+
 ## Indexes
 
 The database uses the following indexes to improve query performance:
 
 ```sql
 CREATE INDEX idx_land_use_transitions ON land_use_transitions (scenario_id, time_step_id, fips_code);
+CREATE INDEX idx_from_land_use ON land_use_transitions (from_land_use);
+CREATE INDEX idx_to_land_use ON land_use_transitions (to_land_use);
+CREATE INDEX idx_counties_state_fips ON counties(SUBSTR(fips_code, 1, 2));
 ```
-This composite index improves performance when querying land use transitions by scenario, time period, and county.
+
+The `idx_counties_state_fips` index enables fast filtering of counties by state FIPS code, which is extracted as the first two characters of the county FIPS code.
 
 ## SQLite Best Practices
 
