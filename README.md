@@ -48,6 +48,18 @@ Transitions between five main land use types:
 
 This dataset was developed by Mihiar, Lewis & Coulston for the USDA Forest Service for the Resources Planning Act (RPA) 2020 Assessment. Download the data here: https://doi.org/10.2737/RDS-2023-0026. Unzip the .json data file to data/raw/. 
 
+### Pipeline Overview
+
+```mermaid
+flowchart TD
+    A[Raw Data: JSON] -->|src/data_setup/converter.py| B[Processed Data: Parquet]
+    B -->|src/data_setup/validator.py| C{Validation}
+    C -->|Valid| D[SQLite Database]
+    C -->|Invalid| E[Error Handling]
+    D -->|src/db/queries.py| F[Data Queries]
+    F --> G[Streamlit App]
+```
+
 1. Raw Data (`data/raw/`)
    - JSON format: `county_landuse_projections_RPA.json`
    - Units: Land area in hundreds of acres
@@ -67,42 +79,36 @@ This dataset was developed by Mihiar, Lewis & Coulston for the USDA Forest Servi
 
 1. Create and activate a Python virtual environment:
 ```bash
-# Using conda (recommended)
-conda create -n rpa_landuse python=3.12
+# Using UV (recommended)
+uv venv .venv-py311 --python 3.11
+source .venv-py311/bin/activate  # On Linux/Mac
+# .venv-py311\Scripts\activate  # On Windows
+
+# OR using conda
+conda create -n rpa_landuse python=3.11
 conda activate rpa_landuse
-
-# OR using venv
-python -m venv .venv
-source .venv/bin/activate  # On Linux/Mac
-# .venv\Scripts\activate  # On Windows
-
-# OR using UV (recommended)
-uv venv .venv-py312 --python 3.12
-source .venv-py312/bin/activate  # On Linux/Mac
-# .venv-py312\Scripts\activate  # On Windows
 ```
 
 2. Install the package in development mode:
 ```bash
-pip install -e .
-
-# OR using UV
+# Using UV (recommended)
 uv pip install -r requirements.txt
+
+# OR using pip
+pip install -e .
 ```
 
 Required dependencies:
 - Pandas: Data processing and analysis
 - SQLite3: Database operations (built into Python)
 - PyArrow: Parquet file handling
-- Testing tools (pytest)
 - NumPy: <2.0.0 for compatibility with pandas 1.5.3
 
 ## Data Loading
 
 1. Convert JSON to Parquet:
 ```bash
-cd data/scripts
-python convert_json_to_parquet.py
+python -m src.data_setup.converter
 ```
 
 2. Load data into SQLite:
@@ -121,16 +127,13 @@ If you're joining the project with an existing database setup:
 
 1. Set up the Python environment:
 ```bash
-# Using conda
-conda create -n rpa_landuse python=3.12
-conda activate rpa_landuse
+# Using UV (recommended)
+uv venv .venv-py311 --python 3.11
+source .venv-py311/bin/activate  # On Linux/Mac
+# .venv-py311\Scripts\activate  # On Windows
 
-# OR using venv
-python -m venv .venv
-source .venv/bin/activate  # On Linux/Mac
-# .venv\Scripts\activate  # On Windows
-
-pip install -e .
+# Install requirements
+uv pip install -r requirements.txt
 ```
 
 2. Verify database file exists:
@@ -146,6 +149,39 @@ sqlite3 data/database/rpa_landuse.db "SELECT COUNT(*) FROM land_use_transitions;
 ```
 
 ### Database Schema
+
+```mermaid
+erDiagram
+    SCENARIOS {
+        int scenario_id PK
+        string scenario_name
+        string gcm
+        string rcp
+        string ssp
+    }
+    TIME_STEPS {
+        int time_step_id PK
+        int start_year
+        int end_year
+    }
+    COUNTIES {
+        string fips_code PK
+        string county_name
+    }
+    LAND_USE_TRANSITIONS {
+        int transition_id PK
+        int scenario_id FK
+        int time_step_id FK
+        string fips_code FK
+        string from_land_use
+        string to_land_use
+        float acres
+    }
+    
+    SCENARIOS ||--o{ LAND_USE_TRANSITIONS : "has"
+    TIME_STEPS ||--o{ LAND_USE_TRANSITIONS : "contains"
+    COUNTIES ||--o{ LAND_USE_TRANSITIONS : "includes"
+```
 
 The SQLite database includes the following tables:
 
@@ -176,6 +212,32 @@ The SQLite database includes the following tables:
 
 ## Streamlit Dashboard App
 
+### Application Architecture
+
+```mermaid
+flowchart TD
+    A[Home.py] --> B[Main Dashboard]
+    A --> C[Pages]
+    
+    B --> D[Data Filtering]
+    D --> D1[County Selection]
+    D --> D2[Time Period Selection]
+    D --> D3[Land Use Type Selection]
+    
+    B --> E[Data Visualization]
+    E --> E1[Data Tables]
+    E --> E2[Charts/Graphs]
+    E --> E3[Maps]
+    
+    B --> F[AI Analysis]
+    F --> F1[PandasAI Integration]
+    F --> F2[Natural Language Queries]
+    
+    C --> G[County Explorer]
+    C --> H[Comparison Tool]
+    C --> I[Projection Analysis]
+```
+
 A Streamlit-based web application is provided for interactive visualization and analysis of the land use change data. The app features:
 
 1. Data filtering by:
@@ -186,8 +248,8 @@ A Streamlit-based web application is provided for interactive visualization and 
 2. Multiple view options:
    - Data tables with land use transition details
    - Statistical summaries of land changes
-   - Map visualizations (coming soon)
-   
+   - Map visualizations
+
 3. AI-powered analysis:
    - Natural language querying of the data using PandasAI
    - Ask questions about trends, patterns, and statistical information
@@ -205,10 +267,11 @@ nano .env  # or use any text editor
 
 2. Run the application:
 ```bash
-streamlit run app.py
+# Using the provided script (Linux/Mac)
+./run_with_py311.sh
 
-# OR use the provided script (Linux/Mac)
-./run_with_py312.sh
+# OR manually
+streamlit run Home.py
 ```
 
 3. Open your browser to http://localhost:8501
