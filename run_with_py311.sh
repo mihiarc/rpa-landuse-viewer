@@ -30,7 +30,7 @@ pip install -r requirements.txt
 
 # Run the application
 echo -e "${GREEN}Starting the application...${NC}"
-streamlit run app.py
+streamlit run Home.py
 
 # Deactivate the virtual environment when done
 deactivate 
