@@ -3,11 +3,17 @@ import pytest
 import sqlite3
 from pathlib import Path
 import sys
+import pandas as pd
+import numpy as np
 
 # Add the src directory to the path so we can import modules
 sys.path.append(str(Path(__file__).parent.parent))
-from src.api.database import DatabaseConnection
-from src.api.config import Config
+from src.db.database import DatabaseConnection
+
+# Internal database configuration
+DB_CONFIG = {
+    'database_path': 'data/database/rpa_landuse.db'
+}
 
 # Define expected tables and their expected row counts (approximate)
 EXPECTED_TABLES = [
@@ -27,7 +33,7 @@ EXPECTED_MIN_ROW_COUNTS = {
 
 def test_db_file_exists():
     """Test that the SQLite database file exists."""
-    db_path = Config.get_db_config()['database_path']
+    db_path = DB_CONFIG['database_path']
     assert os.path.exists(db_path), f"Database file doesn't exist at {db_path}"
     assert os.path.getsize(db_path) > 1000000, "Database file is too small, might not have data"
 

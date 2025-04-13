@@ -119,7 +119,7 @@ conn.close()
 Or using the application's DatabaseConnection class:
 
 ```python
-from src.api.database import DatabaseConnection
+from src.db.database import DatabaseConnection
 
 # Get a connection
 conn = DatabaseConnection.get_connection()

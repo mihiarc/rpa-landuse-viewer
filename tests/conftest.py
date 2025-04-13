@@ -4,7 +4,7 @@ from pathlib import Path
 
 # Add the src directory to the path so we can import modules
 sys.path.append(str(Path(__file__).parent.parent))
-from src.api.database import DatabaseConnection
+from src.db.database import DatabaseConnection
 
 
 @pytest.fixture(scope="session", autouse=True)

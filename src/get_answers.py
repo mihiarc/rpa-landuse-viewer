@@ -1,4 +1,4 @@
-from src.api.queries import LandUseQueries
+from src.db.queries import LandUseQueries
 
 def print_section(title):
     print("\n" + "=" * 80)

@@ -11,16 +11,17 @@ from tqdm import tqdm
 import os
 import sys
 
-# Add parent directory to path to allow importing from sibling modules
-sys.path.append(str(Path(__file__).parent.parent))
-from api.config import Config
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Database configuration
+DB_CONFIG = {
+    'database_path': 'data/database/rpa_landuse.db'
+}
 
 def get_db_connection():
     """
@@ -29,7 +30,7 @@ def get_db_connection():
     Returns:
         sqlite3.Connection: Database connection
     """
-    db_path = Config.get_db_config()['database_path']
+    db_path = DB_CONFIG['database_path']
     
     # Create parent directory if it doesn't exist
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)

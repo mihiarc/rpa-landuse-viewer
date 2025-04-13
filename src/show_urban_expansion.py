@@ -3,7 +3,7 @@
 import os
 import geopandas as gpd
 import matplotlib.pyplot as plt
-from src.api.queries import LandUseQueries
+from src.db.queries import LandUseQueries
 import pandas as pd
 
 def main():

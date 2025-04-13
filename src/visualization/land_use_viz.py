@@ -6,7 +6,7 @@ import folium
 from folium import plugins
 import pandas as pd
 from typing import List, Dict, Optional
-from ..api.queries import LandUseQueries
+from ..db.queries import LandUseQueries
 
 class LandUseVisualization:
     """Class for creating visualizations of land use change data."""

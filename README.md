@@ -61,30 +61,7 @@ Transitions between five main land use types:
 
 ## Installation
 
-1. Install system dependencies:
-```bash
-# On Ubuntu/Debian
-sudo apt-get update
-sudo apt-get install redis-server redis-tools
-
-# On macOS
-brew install redis
-
-# On Windows
-# Download the Redis installer from https://github.com/microsoftarchive/redis/releases
-```
-
-2. Start Redis server:
-```bash
-# On Ubuntu/Debian/macOS
-sudo systemctl start redis-server  # Or: brew services start redis
-redis-cli ping  # Should return PONG
-
-# On Windows
-# Redis will start automatically as a Windows service
-```
-
-3. Create and activate a Python virtual environment:
+1. Create and activate a Python virtual environment:
 ```bash
 # Using conda (recommended)
 conda create -n rpa_landuse python=3.12
@@ -102,30 +79,10 @@ pip install -e .
 ```
 
 Required dependencies:
-- FastAPI: REST API framework
 - Pandas: Data processing and analysis
 - SQLite3: Database operations (built into Python)
-- Redis: Caching layer
 - PyArrow: Parquet file handling
 - Testing tools (pytest)
-
-## Database Setup
-
-The project requires Redis for caching:
-
-1. Start Redis (if not already running):
-```bash
-sudo systemctl start redis-server
-redis-cli ping  # Verify Redis is running
-```
-
-Redis configuration:
-- Host: localhost
-- Port: 6379
-- No authentication required for development
-- Used for API response caching
-
-The SQLite database will be automatically created in the `data/database` directory when you run the data loading script.
 
 ## Data Loading
 
@@ -175,35 +132,10 @@ ls -l data/database/rpa_landuse.db
 sqlite3 data/database/rpa_landuse.db "SELECT COUNT(*) FROM land_use_transitions;"
 ```
 
-4. Start the development server:
-```bash
-# From the project root
-uvicorn app.main:app --reload --port 8000
-```
-
-The API will be available at:
-- API endpoints: http://localhost:8000/
-- Interactive documentation: http://localhost:8000/docs
-- Alternative documentation: http://localhost:8000/redoc
-
 ### Common Development Tasks
 
-1. Query the database:
-```python
-from src.api.database import DatabaseConnection
-
-# Example: Get all scenarios
-conn = DatabaseConnection.get_connection()
-cursor = conn.cursor()
-cursor.execute("SELECT * FROM scenarios")
-scenarios = cursor.fetchall()
-```
-
-2. Run specific test categories:
+1. Run specific test categories:
 ```bash
-# Run only API tests
-pytest tests/test_api.py -v
-
 # Run tests with print statements
 pytest -v -s
 
@@ -211,16 +143,7 @@ pytest -v -s
 pytest -v -k "test_scenario"
 ```
 
-3. Check API endpoints:
-```bash
-# Get available scenarios
-curl http://localhost:8000/scenarios
-
-# Get transitions for a specific county
-curl http://localhost:8000/transitions?fips=01001&scenario=CNRM_CM5_rcp45_ssp1
-```
-
-4. Development utilities:
+2. Development utilities:
 ```bash
 # Format code
 black .
@@ -236,11 +159,9 @@ flake8
 
 ### Running Tests
 
-Tests are organized in order of dependency:
-1. Validation tests: `pytest tests/test_validation.py`
-2. Basic API tests: `pytest tests/test_api.py`
-3. API endpoint tests: `pytest tests/test_api_endpoints.py`
-4. Data loader tests: `pytest tests/test_data_loader.py`
+Tests are organized by functionality:
+1. Database tests: `pytest tests/test_sqlite_db.py`
+2. Data loader tests: `pytest tests/test_data_loader.py`
 
 Run all tests:
 ```bash

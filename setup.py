@@ -10,12 +10,9 @@ setup(
         "folium",
         "pytest",
         "mysql-connector-python",
-        "redis",
         "pyarrow",
         "tqdm",
-        "python-dotenv",
-        "fastapi",
-        "uvicorn"
+        "python-dotenv"
     ],
     python_requires=">=3.8",
 ) 
