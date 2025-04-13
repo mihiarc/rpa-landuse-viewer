@@ -1,6 +1,7 @@
 import os
 from typing import Dict, Any
 from dotenv import load_dotenv
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
@@ -24,23 +25,13 @@ class Config:
         }
     }
     
-    # Database configurations for different environments
+    # SQLite database configurations for different environments
     DB_CONFIGS = {
         "development": {
-            "host": os.getenv("DB_HOST", "localhost"),
-            "user": os.getenv("DB_USER", "mihiarc"),
-            "password": os.getenv("DB_PASSWORD", "survista683"),
-            "database": os.getenv("DB_NAME", "rpa_mysql_db"),
-            "pool_name": "mypool",
-            "pool_size": 5
+            "database_path": os.getenv("DB_PATH", str(Path(__file__).parent.parent.parent / "data" / "database" / "rpa_landuse.db"))
         },
         "testing": {
-            "host": os.getenv("TEST_DB_HOST", "localhost"),
-            "user": os.getenv("TEST_DB_USER", "test_user"),
-            "password": os.getenv("TEST_DB_PASSWORD", "test_password"),
-            "database": os.getenv("TEST_DB_NAME", "test_rpa_db"),
-            "pool_name": "test_pool",
-            "pool_size": 2
+            "database_path": os.getenv("TEST_DB_PATH", str(Path(__file__).parent.parent.parent / "data" / "database" / "test_rpa_landuse.db"))
         }
     }
 

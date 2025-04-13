@@ -1,14 +1,19 @@
 """
 Simplified database loader for RPA land use data.
-Loads data from Parquet into MySQL database with basic error handling.
+Loads data from Parquet into SQLite database with basic error handling.
 """
 
 import pandas as pd
-import mysql.connector
+import sqlite3
 import logging
 from pathlib import Path
 from tqdm import tqdm
 import os
+import sys
+
+# Add parent directory to path to allow importing from sibling modules
+sys.path.append(str(Path(__file__).parent.parent))
+from api.config import Config
 
 # Configure logging
 logging.basicConfig(
@@ -19,33 +24,91 @@ logger = logging.getLogger(__name__)
 
 def get_db_connection():
     """
-    Create a database connection using environment variables or defaults.
+    Create a database connection using config.
     
     Returns:
-        mysql.connector.connection: Database connection
+        sqlite3.Connection: Database connection
     """
-    host = os.environ.get('MYSQL_HOST', 'localhost')
-    user = os.environ.get('MYSQL_USER', 'mihiarc')
-    password = os.environ.get('MYSQL_PASSWORD', 'survista683')
-    database = os.environ.get('MYSQL_DATABASE', 'rpa_mysql_db')
+    db_path = Config.get_db_config()['database_path']
     
-    logger.info(f"Connecting to MySQL database {database} on {host}...")
+    # Create parent directory if it doesn't exist
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    
+    logger.info(f"Connecting to SQLite database at {db_path}...")
     
     try:
-        conn = mysql.connector.connect(
-            host=host,
-            user=user,
-            password=password,
-            database=database
-        )
+        conn = sqlite3.connect(db_path)
+        # Enable foreign keys
+        conn.execute("PRAGMA foreign_keys = ON")
         return conn
-    except mysql.connector.Error as err:
+    except sqlite3.Error as err:
         logger.error(f"Error connecting to database: {err}")
         raise
 
-def load_to_mysql(parquet_file, batch_size=1000):
+def initialize_database():
+    """Create database tables if they don't exist."""
+    logger.info("Initializing database schema...")
+    conn = get_db_connection()
+    
+    create_tables = [
+        """
+        CREATE TABLE IF NOT EXISTS scenarios (
+          scenario_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          scenario_name TEXT UNIQUE NOT NULL,
+          gcm TEXT NOT NULL,
+          rcp TEXT NOT NULL,
+          ssp TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS time_steps (
+          time_step_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          start_year INTEGER NOT NULL,
+          end_year INTEGER NOT NULL,
+          UNIQUE(start_year, end_year)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS counties (
+          fips_code TEXT PRIMARY KEY,
+          county_name TEXT
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS land_use_transitions (
+          transition_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          scenario_id INTEGER NOT NULL,
+          time_step_id INTEGER NOT NULL,
+          fips_code TEXT NOT NULL,
+          from_land_use TEXT NOT NULL,
+          to_land_use TEXT NOT NULL,
+          acres REAL NOT NULL,
+          FOREIGN KEY (scenario_id) REFERENCES scenarios(scenario_id),
+          FOREIGN KEY (time_step_id) REFERENCES time_steps(time_step_id),
+          FOREIGN KEY (fips_code) REFERENCES counties(fips_code)
+        )
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_land_use_transitions 
+        ON land_use_transitions (scenario_id, time_step_id, fips_code)
+        """
+    ]
+    
+    try:
+        for query in create_tables:
+            conn.execute(query)
+        conn.commit()
+        logger.info("Database schema initialized successfully")
+    except sqlite3.Error as e:
+        conn.rollback()
+        logger.error(f"Error creating tables: {e}")
+        raise
+    finally:
+        conn.close()
+
+def load_to_sqlite(parquet_file, batch_size=1000):
     """
-    Load Parquet data into MySQL database.
+    Load Parquet data into SQLite database.
     
     Args:
         parquet_file (str): Path to Parquet file
@@ -59,6 +122,9 @@ def load_to_mysql(parquet_file, batch_size=1000):
         return {"success": False, "error": "File not found"}
     
     try:
+        # Initialize database schema
+        initialize_database()
+        
         # Load data
         logger.info(f"Loading data from {parquet_file}...")
         df = pd.read_parquet(parquet_file)
@@ -121,14 +187,11 @@ def _insert_scenarios(conn, df):
     
     # Insert scenarios
     query = """
-        INSERT INTO scenarios (scenario_name, gcm, rcp, ssp)
-        VALUES (%s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-        gcm=VALUES(gcm), rcp=VALUES(rcp), ssp=VALUES(ssp)
+        INSERT OR REPLACE INTO scenarios (scenario_name, gcm, rcp, ssp)
+        VALUES (?, ?, ?, ?)
     """
     cursor.executemany(query, scenario_data)
     conn.commit()
-    cursor.close()
     
     logger.info(f"Inserted {len(scenario_data)} scenarios")
     return len(scenario_data)
@@ -147,14 +210,11 @@ def _insert_time_steps(conn, df):
     
     # Insert time steps
     query = """
-        INSERT INTO time_steps (start_year, end_year)
-        VALUES (%s, %s)
-        ON DUPLICATE KEY UPDATE
-        start_year=VALUES(start_year), end_year=VALUES(end_year)
+        INSERT OR REPLACE INTO time_steps (start_year, end_year)
+        VALUES (?, ?)
     """
     cursor.executemany(query, time_step_data)
     conn.commit()
-    cursor.close()
     
     logger.info(f"Inserted {len(time_step_data)} time steps")
     return len(time_step_data)
@@ -170,14 +230,11 @@ def _insert_counties(conn, df):
     
     # Insert counties
     query = """
-        INSERT INTO counties (fips_code, county_name)
-        VALUES (%s, %s)
-        ON DUPLICATE KEY UPDATE
-        county_name=VALUES(county_name)
+        INSERT OR REPLACE INTO counties (fips_code, county_name)
+        VALUES (?, ?)
     """
     cursor.executemany(query, county_data)
     conn.commit()
-    cursor.close()
     
     logger.info(f"Inserted {len(county_data)} counties")
     return len(county_data)
@@ -189,139 +246,117 @@ def _insert_transitions(conn, df, batch_size):
     
     # Get scenario and time step mappings
     cursor.execute("SELECT scenario_id, scenario_name FROM scenarios")
-    scenario_map = {v: k for k, v in cursor.fetchall()}
+    scenario_map = {row[1]: row[0] for row in cursor.fetchall()}
     
-    cursor.execute("SELECT time_step_id, CONCAT(start_year, '-', end_year) FROM time_steps")
-    time_step_map = {v: k for k, v in cursor.fetchall()}
+    cursor.execute("SELECT time_step_id, start_year || '-' || end_year FROM time_steps")
+    time_step_map = {row[1]: row[0] for row in cursor.fetchall()}
     
     # Insert transitions in batches with progress bar
     total_records = len(df)
     inserted_count = 0
     
-    with tqdm(total=total_records) as pbar:
-        batch = []
+    # Prepare batch inserts with progress bar
+    query = """
+        INSERT INTO land_use_transitions 
+        (scenario_id, time_step_id, fips_code, from_land_use, to_land_use, acres)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """
+    
+    with tqdm(total=total_records, desc="Loading transitions") as pbar:
+        batch_data = []
         
         for _, row in df.iterrows():
-            batch.append((
-                scenario_map[row['Scenario']],
-                time_step_map[row['YearRange']],
-                row['FIPS'],
-                row['From'],
-                row['To'],
-                float(row['Acres'])
-            ))
+            scenario_id = scenario_map[row['Scenario']]
+            time_step_id = time_step_map[row['YearRange']]
+            fips_code = row['FIPS']
+            from_land_use = row['FromLandUse']
+            to_land_use = row['ToLandUse']
+            acres = row['Acres']
             
-            # Insert when batch is full
-            if len(batch) >= batch_size:
-                query = """
-                    INSERT INTO land_use_transitions 
-                    (scenario_id, time_step_id, fips_code, from_land_use, to_land_use, acres)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """
-                cursor.executemany(query, batch)
-                conn.commit()
-                
-                inserted_count += len(batch)
-                pbar.update(len(batch))
-                batch = []
+            batch_data.append((scenario_id, time_step_id, fips_code, from_land_use, to_land_use, acres))
+            
+            if len(batch_data) >= batch_size:
+                try:
+                    cursor.executemany(query, batch_data)
+                    conn.commit()
+                    inserted_count += len(batch_data)
+                    pbar.update(len(batch_data))
+                    batch_data = []
+                except sqlite3.Error as e:
+                    conn.rollback()
+                    logger.error(f"Error inserting batch: {e}")
+                    raise
         
         # Insert remaining records
-        if batch:
-            query = """
-                INSERT INTO land_use_transitions 
-                (scenario_id, time_step_id, fips_code, from_land_use, to_land_use, acres)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """
-            cursor.executemany(query, batch)
-            conn.commit()
-            
-            inserted_count += len(batch)
-            pbar.update(len(batch))
+        if batch_data:
+            try:
+                cursor.executemany(query, batch_data)
+                conn.commit()
+                inserted_count += len(batch_data)
+                pbar.update(len(batch_data))
+            except sqlite3.Error as e:
+                conn.rollback()
+                logger.error(f"Error inserting final batch: {e}")
+                raise
     
-    cursor.close()
     logger.info(f"Inserted {inserted_count} land use transitions")
     return inserted_count
 
 def verify_database_load():
-    """
-    Verify that data was loaded correctly into the database.
+    """Verify database load by checking record counts."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
-    Returns:
-        dict: Verification results
-    """
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        # Check counts in each table
+        # Check table record counts
         tables = ['scenarios', 'time_steps', 'counties', 'land_use_transitions']
         counts = {}
         
         for table in tables:
-            cursor.execute(f"SELECT COUNT(*) AS count FROM {table}")
-            result = cursor.fetchone()
-            counts[table] = result['count']
+            cursor.execute(f"SELECT COUNT(*) FROM {table}")
+            count = cursor.fetchone()[0]
+            counts[table] = count
+            logger.info(f"Table {table}: {count} records")
         
-        # Get a sample of data from land_use_transitions
+        # Check a sample query
         cursor.execute("""
-            SELECT t.*, s.scenario_name, CONCAT(ts.start_year, '-', ts.end_year) AS year_range
+            SELECT s.scenario_name, ts.start_year, ts.end_year, COUNT(*)
             FROM land_use_transitions t
             JOIN scenarios s ON t.scenario_id = s.scenario_id
             JOIN time_steps ts ON t.time_step_id = ts.time_step_id
+            GROUP BY s.scenario_name, ts.start_year, ts.end_year
             LIMIT 5
         """)
+        
         sample = cursor.fetchall()
+        logger.info("Sample query result:")
+        for row in sample:
+            logger.info(f"  Scenario: {row[0]}, Period: {row[1]}-{row[2]}, Transitions: {row[3]}")
         
+        return counts
+        
+    except sqlite3.Error as e:
+        logger.error(f"Error verifying database: {e}")
+        return None
+    finally:
         conn.close()
-        
-        return {
-            "success": True,
-            "table_counts": counts,
-            "sample_data": sample
-        }
-    
-    except Exception as e:
-        logger.error(f"Error verifying database: {str(e)}")
-        if 'conn' in locals():
-            conn.close()
-        return {"success": False, "error": str(e)}
 
 if __name__ == "__main__":
-    import argparse
-    import json
+    # Default parquet file path, can be overridden via command line
+    default_parquet_path = str(Path(__file__).parent.parent.parent / "data" / "processed" / "rpa_landuse_data.parquet")
+    parquet_file = sys.argv[1] if len(sys.argv) > 1 else default_parquet_path
     
-    parser = argparse.ArgumentParser(description='Load RPA land use data into MySQL.')
-    parser.add_argument('--input', default='data/processed/rpa_landuse_data.parquet',
-                      help='Input Parquet file path')
-    parser.add_argument('--batch', type=int, default=1000,
-                      help='Batch size for inserting records')
-    parser.add_argument('--verify', action='store_true',
-                      help='Verify database after loading')
-    args = parser.parse_args()
+    print(f"Loading data from {parquet_file} into SQLite database...")
+    result = load_to_sqlite(parquet_file)
     
-    # Load data
-    stats = load_to_mysql(args.input, args.batch)
-    
-    print("\nDatabase Loading Summary:")
-    if stats["success"]:
-        print("Status: Success")
-        print(f"Records processed: {stats['record_count']:,}")
-        print(f"Scenarios inserted: {stats['scenarios_inserted']}")
-        print(f"Time steps inserted: {stats['time_steps_inserted']}")
-        print(f"Counties inserted: {stats['counties_inserted']}")
-        print(f"Transitions inserted: {stats['transitions_inserted']:,}")
-    else:
-        print(f"Status: Failed - {stats.get('error', 'Unknown error')}")
-    
-    # Verify if requested
-    if args.verify:
-        print("\nVerifying database...")
-        verify_results = verify_database_load()
+    if result["success"]:
+        print("Data loaded successfully!")
+        print(f"Scenarios: {result['scenarios_inserted']}")
+        print(f"Time steps: {result['time_steps_inserted']}")
+        print(f"Counties: {result['counties_inserted']}")
+        print(f"Transitions: {result['transitions_inserted']}")
         
-        if verify_results["success"]:
-            print("Verification successful!")
-            print("\nTable record counts:")
-            for table, count in verify_results["table_counts"].items():
-                print(f"- {table}: {count:,}")
-        else:
-            print(f"Verification failed: {verify_results.get('error', 'Unknown error')}") 
+        # Verify the load
+        verify_database_load()
+    else:
+        print(f"Error loading data: {result['error']}") 

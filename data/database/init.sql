@@ -1,40 +1,39 @@
-CREATE DATABASE IF NOT EXISTS rpa_mysql_db;
-CREATE USER IF NOT EXISTS 'mihiarc'@'%' IDENTIFIED BY 'survista683';
-GRANT ALL PRIVILEGES ON rpa_mysql_db.* TO 'mihiarc'@'%';
-FLUSH PRIVILEGES;
+-- SQLite schema for RPA Land Use Change database
 
-USE rpa_mysql_db;
-
-CREATE TABLE scenarios (
-  scenario_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  scenario_name VARCHAR(255) UNIQUE NOT NULL,
-  gcm VARCHAR(255) NOT NULL,
-  rcp VARCHAR(255) NOT NULL,
-  ssp VARCHAR(255) NOT NULL
+CREATE TABLE IF NOT EXISTS scenarios (
+  scenario_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scenario_name TEXT UNIQUE NOT NULL,
+  gcm TEXT NOT NULL,
+  rcp TEXT NOT NULL,
+  ssp TEXT NOT NULL
 );
 
-CREATE TABLE time_steps (
-  time_step_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  start_year YEAR NOT NULL,
-  end_year YEAR NOT NULL,
-  UNIQUE KEY (start_year, end_year)
+CREATE TABLE IF NOT EXISTS time_steps (
+  time_step_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  start_year INTEGER NOT NULL,
+  end_year INTEGER NOT NULL,
+  UNIQUE (start_year, end_year)
 );
 
-CREATE TABLE counties (
-  fips_code VARCHAR(5) PRIMARY KEY,
-  county_name VARCHAR(255)
+CREATE TABLE IF NOT EXISTS counties (
+  fips_code TEXT PRIMARY KEY,
+  county_name TEXT
 );
 
-CREATE TABLE land_use_transitions (
-  transition_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  scenario_id INT UNSIGNED NOT NULL,
-  time_step_id INT UNSIGNED NOT NULL,
-  fips_code VARCHAR(5) NOT NULL,
-  from_land_use ENUM('Crop', 'Pasture', 'Range', 'Forest', 'Urban') NOT NULL,
-  to_land_use ENUM('Crop', 'Pasture', 'Range', 'Forest', 'Urban') NOT NULL,
-  acres DOUBLE PRECISION NOT NULL,
+CREATE TABLE IF NOT EXISTS land_use_transitions (
+  transition_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scenario_id INTEGER NOT NULL,
+  time_step_id INTEGER NOT NULL,
+  fips_code TEXT NOT NULL,
+  from_land_use TEXT NOT NULL,
+  to_land_use TEXT NOT NULL,
+  acres REAL NOT NULL,
   FOREIGN KEY (scenario_id) REFERENCES scenarios(scenario_id),
   FOREIGN KEY (time_step_id) REFERENCES time_steps(time_step_id),
-  FOREIGN KEY (fips_code) REFERENCES counties(fips_code),
-  INDEX idx_land_use_transitions (scenario_id, time_step_id, fips_code)
+  FOREIGN KEY (fips_code) REFERENCES counties(fips_code)
 );
+
+-- Create indexes for improved query performance
+CREATE INDEX IF NOT EXISTS idx_land_use_transitions ON land_use_transitions (scenario_id, time_step_id, fips_code);
+CREATE INDEX IF NOT EXISTS idx_from_land_use ON land_use_transitions (from_land_use);
+CREATE INDEX IF NOT EXISTS idx_to_land_use ON land_use_transitions (to_land_use);

@@ -54,7 +54,7 @@ Transitions between five main land use types:
    - Converts JSON to columnar Parquet format for efficient processing
    - Output: `rpa_landuse_data.parquet`
 
-3. MySQL Database
+3. SQLite Database
    - Structured tables for scenarios, time steps, counties, and land use transitions
    - Optimized for querying and analysis
    - Total records: ~5.4 million land use transitions
@@ -104,14 +104,14 @@ pip install -e .
 Required dependencies:
 - FastAPI: REST API framework
 - Pandas: Data processing and analysis
-- MySQL Connector: Database operations
+- SQLite3: Database operations (built into Python)
 - Redis: Caching layer
 - PyArrow: Parquet file handling
 - Testing tools (pytest)
 
 ## Database Setup
 
-The project requires both MySQL and Redis:
+The project requires Redis for caching:
 
 1. Start Redis (if not already running):
 ```bash
@@ -125,42 +125,7 @@ Redis configuration:
 - No authentication required for development
 - Used for API response caching
 
-2. Install MySQL locally:
-```bash
-# On Ubuntu/Debian
-sudo apt-get update
-sudo apt-get install mysql-server
-
-# On macOS
-brew install mysql
-brew services start mysql
-
-# On Windows
-# Download and install MySQL from https://dev.mysql.com/downloads/installer/
-```
-
-3. Set up MySQL database:
-```bash
-# Log in to MySQL
-mysql -u root -p
-
-# Create database and user (inside MySQL shell)
-CREATE DATABASE rpa_mysql_db;
-CREATE USER 'mihiarc'@'localhost' IDENTIFIED BY 'survista683';
-GRANT ALL PRIVILEGES ON rpa_mysql_db.* TO 'mihiarc'@'localhost';
-FLUSH PRIVILEGES;
-EXIT;
-
-# Import initial schema
-mysql -u mihiarc -psurvista683 rpa_mysql_db < data/database/init.sql
-```
-
-Database credentials:
-- Host: localhost
-- Port: 3306
-- Database: rpa_mysql_db
-- User: mihiarc
-- Password: survista683
+The SQLite database will be automatically created in the `data/database` directory when you run the data loading script.
 
 ## Data Loading
 
@@ -170,10 +135,15 @@ cd data/scripts
 python convert_json_to_parquet.py
 ```
 
-2. Load data into MySQL:
+2. Load data into SQLite:
 ```bash
-python load_to_mysql.py
+python -m src.data_setup.db_loader
 ```
+
+This will:
+- Create the SQLite database file at `data/database/rpa_landuse.db` if it doesn't exist
+- Initialize the database schema
+- Load the data from the Parquet file into the database
 
 ## Working with Existing Database
 
@@ -193,23 +163,16 @@ source .venv/bin/activate  # On Linux/Mac
 pip install -e .
 ```
 
-2. Verify database connection:
+2. Verify database file exists:
 ```bash
-# Check if MySQL service is running
-# On Linux
-systemctl status mysql
-
-# On macOS
-brew services list | grep mysql
-
-# On Windows
-# Check Services application
+# Check if SQLite database file exists
+ls -l data/database/rpa_landuse.db
 ```
 
 3. Verify data availability:
 ```bash
-# Connect to MySQL and check record count
-mysql -u mihiarc -psurvista683 rpa_mysql_db -e "SELECT COUNT(*) FROM land_use_transitions;"
+# Connect to SQLite and check record count
+sqlite3 data/database/rpa_landuse.db "SELECT COUNT(*) FROM land_use_transitions;"
 ```
 
 4. Start the development server:
@@ -227,13 +190,13 @@ The API will be available at:
 
 1. Query the database:
 ```python
-from app.database import get_db
+from src.api.database import DatabaseConnection
 
 # Example: Get all scenarios
-with get_db() as db:
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM scenarios")
-    scenarios = cursor.fetchall()
+conn = DatabaseConnection.get_connection()
+cursor = conn.cursor()
+cursor.execute("SELECT * FROM scenarios")
+scenarios = cursor.fetchall()
 ```
 
 2. Run specific test categories:
@@ -286,7 +249,7 @@ pytest -v
 
 ### Database Schema
 
-The MySQL database includes the following tables:
+The SQLite database includes the following tables:
 
 1. `scenarios`
    - scenario_id (PK)
