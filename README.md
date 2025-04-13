@@ -125,24 +125,34 @@ Redis configuration:
 - No authentication required for development
 - Used for API response caching
 
-2. Navigate to the database directory:
+2. Install MySQL locally:
 ```bash
-cd data/database
+# On Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install mysql-server
+
+# On macOS
+brew install mysql
+brew services start mysql
+
+# On Windows
+# Download and install MySQL from https://dev.mysql.com/downloads/installer/
 ```
 
-2. Build the MySQL Docker image:
+3. Set up MySQL database:
 ```bash
-docker build -t rpa-mysql -f Dockerfile.dockerfile .
-```
+# Log in to MySQL
+mysql -u root -p
 
-3. Start the MySQL container:
-```bash
-docker run -d --name rpa-mysql-container -p 3306:3306 rpa-mysql
-```
+# Create database and user (inside MySQL shell)
+CREATE DATABASE rpa_mysql_db;
+CREATE USER 'mihiarc'@'localhost' IDENTIFIED BY 'survista683';
+GRANT ALL PRIVILEGES ON rpa_mysql_db.* TO 'mihiarc'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
 
-4. Verify the container is running:
-```bash
-docker ps | grep mysql
+# Import initial schema
+mysql -u mihiarc -psurvista683 rpa_mysql_db < data/database/init.sql
 ```
 
 Database credentials:
@@ -151,18 +161,6 @@ Database credentials:
 - Database: rpa_mysql_db
 - User: mihiarc
 - Password: survista683
-
-Container management:
-```bash
-# Stop the container
-docker stop rpa-mysql-container
-
-# Remove the container
-docker rm rpa-mysql-container
-
-# Start a new container
-docker run -d --name rpa-mysql-container -p 3306:3306 rpa-mysql
-```
 
 ## Data Loading
 
@@ -181,7 +179,7 @@ python load_to_mysql.py
 
 If you're joining the project with an existing database setup:
 
-1. set up the Python environment:
+1. Set up the Python environment:
 ```bash
 # Using conda
 conda create -n rpa_landuse python=3.12
@@ -197,17 +195,21 @@ pip install -e .
 
 2. Verify database connection:
 ```bash
-# Check if the MySQL container is running
-docker ps | grep mysql
+# Check if MySQL service is running
+# On Linux
+systemctl status mysql
 
-# If not running, start it
-docker start rpa-mysql-container
+# On macOS
+brew services list | grep mysql
+
+# On Windows
+# Check Services application
 ```
 
 3. Verify data availability:
 ```bash
 # Connect to MySQL and check record count
-docker exec -it rpa-mysql-container mysql -u mihiarc -psurvista683 rpa_mysql_db -e "SELECT COUNT(*) FROM land_use_transitions;"
+mysql -u mihiarc -psurvista683 rpa_mysql_db -e "SELECT COUNT(*) FROM land_use_transitions;"
 ```
 
 4. Start the development server:
