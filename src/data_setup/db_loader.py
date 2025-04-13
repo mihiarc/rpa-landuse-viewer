@@ -269,8 +269,8 @@ def _insert_transitions(conn, df, batch_size):
             scenario_id = scenario_map[row['Scenario']]
             time_step_id = time_step_map[row['YearRange']]
             fips_code = row['FIPS']
-            from_land_use = row['FromLandUse']
-            to_land_use = row['ToLandUse']
+            from_land_use = row['From']
+            to_land_use = row['To']
             acres = row['Acres']
             
             batch_data.append((scenario_id, time_step_id, fips_code, from_land_use, to_land_use, acres))
