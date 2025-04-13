@@ -207,45 +207,46 @@ class LandUseQueries:
         Returns:
             List of dictionaries containing county info and change amount
         """
-        with DatabaseConnection.get_connection() as conn:
-            cursor = conn.cursor(dictionary=True)
-            
-            query = """
-                WITH county_changes AS (
-                    SELECT 
-                        t.fips_code,
-                        c.county_name,
-                        SUBSTRING(t.fips_code, 1, 2) as state_fips,
-                        SUM(CASE WHEN t.to_land_use = %s THEN t.acres ELSE 0 END) as gained,
-                        SUM(CASE WHEN t.from_land_use = %s THEN t.acres ELSE 0 END) as lost
-                    FROM land_use_transitions t
-                    JOIN time_steps ts ON t.time_step_id = ts.time_step_id
-                    JOIN scenarios s ON t.scenario_id = s.scenario_id
-                    JOIN counties c ON t.fips_code = c.fips_code
-                    WHERE ts.start_year >= %s AND ts.end_year <= %s
-                    AND s.scenario_name = %s
-                    GROUP BY t.fips_code, c.county_name, state_fips
-                )
+        conn = DatabaseConnection.get_connection()
+        cursor = conn.cursor()
+        
+        query = """
+            WITH county_changes AS (
                 SELECT 
-                    fips_code,
-                    county_name,
-                    state_fips,
-                    gained - lost as net_change
-                FROM county_changes
-                ORDER BY 
-                    CASE WHEN %s = 'increase' THEN gained - lost
-                         ELSE lost - gained END DESC
-                LIMIT %s
-            """
-            
-            params = [
-                land_use_type, land_use_type,
-                start_year, end_year, scenario_name,
-                change_type, limit
-            ]
-            
-            cursor.execute(query, params)
-            return cursor.fetchall()
+                    t.fips_code,
+                    c.county_name,
+                    SUBSTR(t.fips_code, 1, 2) as state_fips,
+                    SUM(CASE WHEN t.to_land_use = ? THEN t.acres ELSE 0 END) as gained,
+                    SUM(CASE WHEN t.from_land_use = ? THEN t.acres ELSE 0 END) as lost
+                FROM land_use_transitions t
+                JOIN time_steps ts ON t.time_step_id = ts.time_step_id
+                JOIN scenarios s ON t.scenario_id = s.scenario_id
+                JOIN counties c ON t.fips_code = c.fips_code
+                WHERE ts.start_year >= ? AND ts.end_year <= ?
+                AND s.scenario_name = ?
+                GROUP BY t.fips_code, c.county_name, state_fips
+            )
+            SELECT 
+                fips_code,
+                county_name,
+                state_fips,
+                gained - lost as net_change
+            FROM county_changes
+            ORDER BY 
+                CASE WHEN ? = 'increase' THEN gained - lost
+                     ELSE lost - gained END DESC
+            LIMIT ?
+        """
+        
+        params = [
+            land_use_type, land_use_type,
+            start_year, end_year, scenario_name,
+            change_type, limit
+        ]
+        
+        cursor.execute(query, params)
+        result = [dict(row) for row in cursor.fetchall()]
+        return result
 
     # Geographic Analysis Queries (Section II)
     @staticmethod
@@ -503,45 +504,46 @@ class LandUseQueries:
         Returns:
             Dictionary containing comparison results
         """
-        with DatabaseConnection.get_connection() as conn:
-            cursor = conn.cursor(dictionary=True)
-            
-            query = """
-                WITH scenario_changes AS (
-                    SELECT 
-                        s.scenario_name,
-                        s.gcm,
-                        s.rcp,
-                        s.ssp,
-                        SUM(CASE WHEN t.to_land_use = %s THEN t.acres ELSE 0 END) as gained,
-                        SUM(CASE WHEN t.from_land_use = %s THEN t.acres ELSE 0 END) as lost
-                    FROM land_use_transitions t
-                    JOIN time_steps ts ON t.time_step_id = ts.time_step_id
-                    JOIN scenarios s ON t.scenario_id = s.scenario_id
-                    WHERE ts.start_year >= %s AND ts.end_year <= %s
-                    AND s.scenario_name IN (%s, %s)
-                    GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp
-                )
+        conn = DatabaseConnection.get_connection()
+        cursor = conn.cursor()
+        
+        query = """
+            WITH scenario_changes AS (
                 SELECT 
-                    scenario_name,
-                    gcm,
-                    rcp,
-                    ssp,
-                    gained - lost as net_change,
-                    (gained - lost) / (%s - %s) as annual_rate
-                FROM scenario_changes
-                ORDER BY scenario_name
-            """
-            
-            params = [
-                land_use_type, land_use_type,
-                start_year, end_year,
-                scenario1, scenario2,
-                end_year, start_year
-            ]
-            
-            cursor.execute(query, params)
-            return cursor.fetchall()
+                    s.scenario_name,
+                    s.gcm,
+                    s.rcp,
+                    s.ssp,
+                    SUM(CASE WHEN t.to_land_use = ? THEN t.acres ELSE 0 END) as gained,
+                    SUM(CASE WHEN t.from_land_use = ? THEN t.acres ELSE 0 END) as lost
+                FROM land_use_transitions t
+                JOIN time_steps ts ON t.time_step_id = ts.time_step_id
+                JOIN scenarios s ON t.scenario_id = s.scenario_id
+                WHERE ts.start_year >= ? AND ts.end_year <= ?
+                AND s.scenario_name IN (?, ?)
+                GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp
+            )
+            SELECT 
+                scenario_name,
+                gcm,
+                rcp,
+                ssp,
+                gained - lost as net_change,
+                (gained - lost) / (? - ?) as annual_rate
+            FROM scenario_changes
+            ORDER BY scenario_name
+        """
+        
+        params = [
+            land_use_type, land_use_type,
+            start_year, end_year,
+            scenario1, scenario2,
+            end_year, start_year
+        ]
+        
+        cursor.execute(query, params)
+        result = [dict(row) for row in cursor.fetchall()]
+        return result
 
     @staticmethod
     def major_transitions(
@@ -562,38 +564,39 @@ class LandUseQueries:
         Returns:
             List of dictionaries containing transition details
         """
-        with DatabaseConnection.get_connection() as conn:
-            cursor = conn.cursor(dictionary=True)
-            
-            query = """
-                WITH transitions AS (
-                    SELECT 
-                        t.from_land_use,
-                        t.to_land_use,
-                        SUM(t.acres) as acres_changed
-                    FROM land_use_transitions t
-                    JOIN time_steps ts ON t.time_step_id = ts.time_step_id
-                    JOIN scenarios s ON t.scenario_id = s.scenario_id
-                    WHERE ts.start_year >= %s AND ts.end_year <= %s
-                    AND s.scenario_name = %s
-                    AND t.from_land_use != t.to_land_use
-                    GROUP BY t.from_land_use, t.to_land_use
-                )
+        conn = DatabaseConnection.get_connection()
+        cursor = conn.cursor()
+        
+        query = """
+            WITH transitions AS (
                 SELECT 
-                    from_land_use,
-                    to_land_use,
-                    acres_changed,
-                    acres_changed / (
-                        SELECT SUM(acres_changed) FROM transitions
-                    ) * 100 as percentage_of_all_changes
-                FROM transitions
-                ORDER BY acres_changed DESC
-                LIMIT %s
-            """
-            
-            params = [start_year, end_year, scenario_name, limit]
-            cursor.execute(query, params)
-            return cursor.fetchall()
+                    t.from_land_use,
+                    t.to_land_use,
+                    SUM(t.acres) as acres_changed
+                FROM land_use_transitions t
+                JOIN time_steps ts ON t.time_step_id = ts.time_step_id
+                JOIN scenarios s ON t.scenario_id = s.scenario_id
+                WHERE ts.start_year >= ? AND ts.end_year <= ?
+                AND s.scenario_name = ?
+                AND t.from_land_use != t.to_land_use
+                GROUP BY t.from_land_use, t.to_land_use
+            )
+            SELECT 
+                from_land_use,
+                to_land_use,
+                acres_changed,
+                acres_changed / (
+                    SELECT SUM(acres_changed) FROM transitions
+                ) * 100 as percentage_of_all_changes
+            FROM transitions
+            ORDER BY acres_changed DESC
+            LIMIT ?
+        """
+        
+        params = [start_year, end_year, scenario_name, limit]
+        cursor.execute(query, params)
+        result = [dict(row) for row in cursor.fetchall()]
+        return result
 
     @staticmethod
     def check_data_integrity(
@@ -608,73 +611,73 @@ class LandUseQueries:
         Returns:
             Dictionary containing check results
         """
-        with DatabaseConnection.get_connection() as conn:
-            cursor = conn.cursor(dictionary=True)
-            
-            # Check 1: Total area consistency
-            area_check_query = """
-                WITH time_step_totals AS (
-                    SELECT 
-                        t.fips_code,
-                        ts.time_step_id,
-                        ts.start_year,
-                        SUM(t.acres) as total_acres
-                    FROM land_use_transitions t
-                    JOIN time_steps ts ON t.time_step_id = ts.time_step_id
-                    JOIN scenarios s ON t.scenario_id = s.scenario_id
-                    WHERE s.scenario_name = %s
-                    GROUP BY t.fips_code, ts.time_step_id, ts.start_year
-                ),
-                area_differences AS (
-                    SELECT 
-                        t1.fips_code,
-                        t1.time_step_id,
-                        t1.start_year,
-                        ABS(t1.total_acres - t2.total_acres) as area_difference
-                    FROM time_step_totals t1
-                    JOIN time_step_totals t2 
-                    ON t1.fips_code = t2.fips_code 
-                    AND t1.start_year > t2.start_year
-                    AND NOT EXISTS (
-                        SELECT 1 FROM time_step_totals t3
-                        WHERE t3.fips_code = t1.fips_code
-                        AND t3.start_year > t2.start_year 
-                        AND t3.start_year < t1.start_year
-                    )
-                )
-                SELECT * FROM area_differences
-                WHERE area_difference > 0.01
-                LIMIT 5
-            """
-            
-            # Check 2: Negative acres
-            negative_check_query = """
+        conn = DatabaseConnection.get_connection()
+        cursor = conn.cursor()
+        
+        # Check 1: Total area consistency
+        area_check_query = """
+            WITH time_step_totals AS (
                 SELECT 
                     t.fips_code,
-                    t.from_land_use,
-                    t.to_land_use,
-                    t.acres,
+                    ts.time_step_id,
                     ts.start_year,
-                    ts.end_year
+                    SUM(t.acres) as total_acres
                 FROM land_use_transitions t
                 JOIN time_steps ts ON t.time_step_id = ts.time_step_id
                 JOIN scenarios s ON t.scenario_id = s.scenario_id
-                WHERE s.scenario_name = %s
-                AND t.acres < 0
-                LIMIT 5
-            """
-            
-            # Execute checks
-            cursor.execute(area_check_query, [scenario_name])
-            area_inconsistencies = cursor.fetchall()
-            
-            cursor.execute(negative_check_query, [scenario_name])
-            negative_acres = cursor.fetchall()
-            
-            return {
-                'area_inconsistencies': area_inconsistencies,
-                'negative_acres': negative_acres
-            }
+                WHERE s.scenario_name = ?
+                GROUP BY t.fips_code, ts.time_step_id, ts.start_year
+            ),
+            area_differences AS (
+                SELECT 
+                    t1.fips_code,
+                    t1.time_step_id,
+                    t1.start_year,
+                    ABS(t1.total_acres - t2.total_acres) as area_difference
+                FROM time_step_totals t1
+                JOIN time_step_totals t2 
+                ON t1.fips_code = t2.fips_code 
+                AND t1.start_year > t2.start_year
+                AND NOT EXISTS (
+                    SELECT 1 FROM time_step_totals t3
+                    WHERE t3.fips_code = t1.fips_code
+                    AND t3.start_year > t2.start_year 
+                    AND t3.start_year < t1.start_year
+                )
+            )
+            SELECT * FROM area_differences
+            WHERE area_difference > 0.01
+            LIMIT 5
+        """
+        
+        # Check 2: Negative acres
+        negative_check_query = """
+            SELECT 
+                t.fips_code,
+                t.from_land_use,
+                t.to_land_use,
+                t.acres,
+                ts.start_year,
+                ts.end_year
+            FROM land_use_transitions t
+            JOIN time_steps ts ON t.time_step_id = ts.time_step_id
+            JOIN scenarios s ON t.scenario_id = s.scenario_id
+            WHERE s.scenario_name = ?
+            AND t.acres < 0
+            LIMIT 5
+        """
+        
+        # Execute checks
+        cursor.execute(area_check_query, [scenario_name])
+        area_inconsistencies = [dict(row) for row in cursor.fetchall()]
+        
+        cursor.execute(negative_check_query, [scenario_name])
+        negative_acres = [dict(row) for row in cursor.fetchall()]
+        
+        return {
+            'area_inconsistencies': area_inconsistencies,
+            'negative_acres': negative_acres
+        }
 
     @staticmethod
     def rank_scenarios_by_forest_loss(
@@ -691,37 +694,38 @@ class LandUseQueries:
         Returns:
             List of dictionaries containing scenario info and forest loss metrics
         """
-        with DatabaseConnection.get_connection() as conn:
-            cursor = conn.cursor(dictionary=True)
-            
-            query = """
-                WITH forest_changes AS (
-                    SELECT 
-                        s.scenario_name,
-                        s.rcp as emissions_forcing,
-                        s.ssp as socioeconomic_pathway,
-                        SUM(CASE WHEN t.from_land_use = 'Forest' THEN t.acres ELSE 0 END) as forest_loss,
-                        SUM(CASE WHEN t.to_land_use = 'Forest' THEN t.acres ELSE 0 END) as forest_gain
-                    FROM land_use_transitions t
-                    JOIN scenarios s ON t.scenario_id = s.scenario_id
-                    JOIN time_steps ts ON t.time_step_id = ts.time_step_id
-                    WHERE s.gcm = %s
-                    AND ts.end_year <= %s
-                    GROUP BY s.scenario_name, s.rcp, s.ssp
-                )
+        conn = DatabaseConnection.get_connection()
+        cursor = conn.cursor()
+        
+        query = """
+            WITH forest_changes AS (
                 SELECT 
-                    scenario_name,
-                    emissions_forcing,
-                    socioeconomic_pathway,
-                    forest_loss,
-                    forest_gain,
-                    forest_loss - forest_gain as net_forest_loss,
-                    RANK() OVER (ORDER BY (forest_loss - forest_gain) DESC) as loss_rank
-                FROM forest_changes
-                ORDER BY loss_rank ASC
-            """
-            
-            cursor.execute(query, [climate_model, target_year])
-            return cursor.fetchall()
+                    s.scenario_name,
+                    s.rcp as emissions_forcing,
+                    s.ssp as socioeconomic_pathway,
+                    SUM(CASE WHEN t.from_land_use = 'Forest' THEN t.acres ELSE 0 END) as forest_loss,
+                    SUM(CASE WHEN t.to_land_use = 'Forest' THEN t.acres ELSE 0 END) as forest_gain
+                FROM land_use_transitions t
+                JOIN scenarios s ON t.scenario_id = s.scenario_id
+                JOIN time_steps ts ON t.time_step_id = ts.time_step_id
+                WHERE s.gcm = ?
+                AND ts.end_year <= ?
+                GROUP BY s.scenario_name, s.rcp, s.ssp
+            )
+            SELECT 
+                scenario_name,
+                emissions_forcing,
+                socioeconomic_pathway,
+                forest_loss,
+                forest_gain,
+                forest_loss - forest_gain as net_forest_loss,
+                RANK() OVER (ORDER BY (forest_loss - forest_gain) DESC) as loss_rank
+            FROM forest_changes
+            ORDER BY loss_rank ASC
+        """
+        
+        cursor.execute(query, [climate_model, target_year])
+        result = [dict(row) for row in cursor.fetchall()]
+        return result
 
     # More query methods will be added for each section... 

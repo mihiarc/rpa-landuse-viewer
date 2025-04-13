@@ -260,7 +260,7 @@ class LandUseVisualization:
             showlegend=True
         )
         
-        return fig 
+        return fig
 
     @staticmethod
     def create_scenario_ranking_plot(
