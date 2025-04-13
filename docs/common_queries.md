@@ -46,6 +46,6 @@ This document outlines a set of interesting and insightful queries to test the c
 
 **Implementation Notes:**
 
-*   These queries will likely involve SQL queries against your MySQL database.
-*   You'll need to implement functions in your `src.api.database` (or `src.analysis`) module to execute these queries.
+*   These queries will likely involve SQL queries against your SQLite database.
+*   You'll need to implement functions in your `src.db.queries` module to execute these queries.
 *   Your integration tests will call these functions and compare the results to expected values.

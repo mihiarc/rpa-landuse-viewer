@@ -44,15 +44,19 @@ Transitions between five main land use types:
 
 ## Data Processing Pipeline
 
+### Data Source
+
+This dataset was developed by Mihiar, Lewis & Coulston for the USDA Forest Service for the Resources Planning Act (RPA) 2020 Assessment. Download the data here: https://doi.org/10.2737/RDS-2023-0026. Unzip the .json data file to data/raw/. 
+
 1. Raw Data (`data/raw/`)
    - JSON format: `county_landuse_projections_RPA.json`
    - Units: Land area in hundreds of acres
-   - Includes metadata and variable descriptions
+   - See _variable_descriptions.csv for data dictionary
 
 2. Conversion to Parquet
-   - Script: `data/scripts/convert_json_to_parquet.py`
+   - Script: `src/data_setup/converter.py`
    - Converts JSON to columnar Parquet format for efficient processing
-   - Output: `rpa_landuse_data.parquet`
+   - Output: `data/processed/rpa_landuse_data.parquet`
 
 3. SQLite Database
    - Structured tables for scenarios, time steps, counties, and land use transitions
@@ -132,42 +136,6 @@ ls -l data/database/rpa_landuse.db
 sqlite3 data/database/rpa_landuse.db "SELECT COUNT(*) FROM land_use_transitions;"
 ```
 
-### Common Development Tasks
-
-1. Run specific test categories:
-```bash
-# Run tests with print statements
-pytest -v -s
-
-# Run tests matching a pattern
-pytest -v -k "test_scenario"
-```
-
-2. Development utilities:
-```bash
-# Format code
-black .
-
-# Check type hints
-mypy .
-
-# Run linter
-flake8
-```
-
-## Development
-
-### Running Tests
-
-Tests are organized by functionality:
-1. Database tests: `pytest tests/test_sqlite_db.py`
-2. Data loader tests: `pytest tests/test_data_loader.py`
-
-Run all tests:
-```bash
-pytest -v
-```
-
 ### Database Schema
 
 The SQLite database includes the following tables:
@@ -196,11 +164,3 @@ The SQLite database includes the following tables:
    - from_land_use
    - to_land_use
    - acres
-
-## Data Source
-
-This dataset was developed by the USDA Forest Service for the Resources Planning Act (RPA) 2020 Assessment. For more information, visit: https://doi.org/10.2737/RDS-2023-0026
-
-## License
-
-[Add appropriate license information]

@@ -207,16 +207,16 @@ class LandUseQueries:
         limit: int = 10
     ) -> List[Dict[str, Any]]:
         """
-        Identify major land use transitions.
+        Get major land use transitions for a specific scenario.
         
         Args:
             start_year: Starting year for analysis
             end_year: Ending year for analysis
             scenario_name: Scenario name
-            limit: Number of transitions to return
+            limit: Max number of transitions to return
             
         Returns:
-            List of dictionaries containing major transitions
+            List of dictionaries containing transition details
         """
         conn = None
         try:
@@ -239,52 +239,43 @@ class LandUseQueries:
                 (start_year, end_year)
             )
             time_step_ids = [row[0] for row in cursor.fetchall()]
+            if not time_step_ids:
+                raise ValueError(f"No time steps found between {start_year} and {end_year}")
             
-            # Build the query
+            # Get major transitions
             query = """
-                WITH total_changes AS (
-                    SELECT SUM(acres) as total 
-                    FROM land_use_transitions 
-                    WHERE scenario_id = ? AND time_step_id IN ({})
-                )
                 SELECT 
-                    t.from_land_use,
-                    t.to_land_use,
-                    SUM(t.acres) as acres_changed,
-                    (SUM(t.acres) / (SELECT total FROM total_changes)) * 100 as percentage_of_all_changes
+                    from_land_use,
+                    to_land_use,
+                    SUM(acres) as acres_changed
                 FROM 
-                    land_use_transitions t
+                    land_use_transitions
                 WHERE 
-                    t.scenario_id = ? 
-                    AND t.time_step_id IN ({})
-                    AND t.from_land_use != t.to_land_use
+                    scenario_id = ? 
+                    AND time_step_id IN ({})
+                    AND from_land_use != to_land_use
                 GROUP BY 
-                    t.from_land_use, t.to_land_use
+                    from_land_use, to_land_use
                 ORDER BY 
                     acres_changed DESC
                 LIMIT ?
-            """.format(
-                ','.join(['?'] * len(time_step_ids)),
-                ','.join(['?'] * len(time_step_ids))
-            )
+            """.format(','.join(['?'] * len(time_step_ids)))
             
-            # Prepare parameters
-            params = [scenario_id] + time_step_ids + [scenario_id] + time_step_ids + [limit]
-            
-            # Execute query
+            params = [scenario_id] + time_step_ids + [limit]
             cursor.execute(query, params)
+            
+            # Process results
             results = []
             for row in cursor.fetchall():
                 results.append({
                     'from_land_use': row[0],
                     'to_land_use': row[1],
-                    'acres_changed': row[2],
-                    'percentage_of_all_changes': row[3]
+                    'acres_changed': row[2]
                 })
             
             return results
         except Exception as e:
-            logger.error(f"Error identifying major transitions: {e}")
+            logger.error(f"Error getting major transitions: {e}")
             raise
         finally:
             if conn and conn != DatabaseConnection._connection:
@@ -300,18 +291,18 @@ class LandUseQueries:
         direction: str = 'decrease'
     ) -> List[Dict[str, Any]]:
         """
-        Find counties with highest land use changes.
+        Find counties with the highest change in a specific land use type.
         
         Args:
             start_year: Starting year for analysis
             end_year: Ending year for analysis
             land_use_type: Land use type to analyze
             scenario_name: Scenario name
-            limit: Number of counties to return
-            direction: 'increase' or 'decrease' to find counties with highest increase or decrease
+            limit: Maximum number of counties to return
+            direction: 'increase' or 'decrease'
             
         Returns:
-            List of dictionaries containing county information
+            List of dictionaries containing county details and change data
         """
         conn = None
         try:
@@ -334,11 +325,10 @@ class LandUseQueries:
                 (start_year, end_year)
             )
             time_step_ids = [row[0] for row in cursor.fetchall()]
-            
-            # Determine order direction
-            order_dir = "ASC" if direction == 'decrease' else "DESC"
-            
-            # Build the query
+            if not time_step_ids:
+                raise ValueError(f"No time steps found between {start_year} and {end_year}")
+                
+            # Calculate net change by county
             query = """
                 SELECT 
                     c.fips_code,
@@ -352,28 +342,29 @@ class LandUseQueries:
                 WHERE 
                     t.scenario_id = ? 
                     AND t.time_step_id IN ({})
-                    AND (t.from_land_use = ? OR t.to_land_use = ?)
                 GROUP BY 
                     c.fips_code, c.county_name
+                HAVING 
+                    net_change {} 0
                 ORDER BY 
-                    net_change {}
+                    {}
                 LIMIT ?
             """.format(
                 ','.join(['?'] * len(time_step_ids)),
-                order_dir
+                ">" if direction == 'increase' else "<",
+                "net_change DESC" if direction == 'increase' else "net_change ASC"
             )
             
-            # Prepare parameters
-            params = [land_use_type, land_use_type, scenario_id] + time_step_ids + [land_use_type, land_use_type, limit]
-            
-            # Execute query
+            params = [land_use_type, land_use_type, scenario_id] + time_step_ids + [limit]
             cursor.execute(query, params)
+            
+            # Process results
             results = []
             for row in cursor.fetchall():
                 results.append({
                     'fips_code': row[0],
                     'county_name': row[1],
-                    'net_change': row[2]
+                    'net_change': abs(row[2]) if direction == 'decrease' else row[2]
                 })
             
             return results
@@ -483,6 +474,178 @@ class LandUseQueries:
             return results
         except Exception as e:
             logger.error(f"Error checking data integrity: {e}")
+            raise
+        finally:
+            if conn and conn != DatabaseConnection._connection:
+                conn.close()
+    
+    @staticmethod
+    def rank_scenarios_by_forest_loss(
+        target_year: int,
+        climate_model: str = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Rank scenarios by forest loss through the target year.
+        
+        Args:
+            target_year: The year to analyze (will use 2012 to target_year)
+            climate_model: Optional climate model to filter by
+            
+        Returns:
+            List of dictionaries containing scenario rankings
+        """
+        conn = None
+        try:
+            conn = DatabaseConnection.get_connection()
+            cursor = conn.cursor()
+            
+            # Build the query base
+            query = """
+                SELECT 
+                    s.scenario_name,
+                    s.gcm,
+                    s.rcp,
+                    s.ssp,
+                    SUM(CASE WHEN t.from_land_use = 'Forest' THEN t.acres ELSE 0 END) AS forest_loss,
+                    SUM(CASE WHEN t.to_land_use = 'Forest' THEN t.acres ELSE 0 END) AS forest_gain,
+                    SUM(CASE WHEN t.from_land_use = 'Forest' THEN t.acres ELSE 0 END) -
+                    SUM(CASE WHEN t.to_land_use = 'Forest' THEN t.acres ELSE 0 END) AS net_forest_loss
+                FROM 
+                    land_use_transitions t
+                JOIN 
+                    scenarios s ON t.scenario_id = s.scenario_id
+                JOIN 
+                    time_steps ts ON t.time_step_id = ts.time_step_id
+                WHERE 
+                    ts.end_year <= ?
+            """
+            
+            params = [target_year]
+            
+            # Add climate model filter if provided
+            if climate_model:
+                query += " AND s.gcm = ?"
+                params.append(climate_model)
+                
+            # Complete the query
+            query += """
+                GROUP BY 
+                    s.scenario_name, s.gcm, s.rcp, s.ssp
+                ORDER BY 
+                    net_forest_loss DESC
+            """
+            
+            # Execute the query
+            cursor.execute(query, params)
+            
+            # Process results with added fields for visualization
+            results = []
+            rank = 1
+            for row in cursor.fetchall():
+                results.append({
+                    'scenario_name': row[0],
+                    'gcm': row[1],
+                    'rcp': row[2],
+                    'ssp': row[3],
+                    'forest_loss': row[4],
+                    'forest_gain': row[5],
+                    'net_forest_loss': row[6],
+                    'emissions_forcing': row[2],  # Using RCP as emissions forcing
+                    'socioeconomic_pathway': row[3],  # Using SSP as socioeconomic pathway
+                    'loss_rank': rank
+                })
+                rank += 1
+            
+            return results
+        except Exception as e:
+            logger.error(f"Error ranking scenarios by forest loss: {e}")
+            raise
+        finally:
+            if conn and conn != DatabaseConnection._connection:
+                conn.close()
+    
+    @staticmethod
+    def total_net_change(
+        start_year: int,
+        end_year: int,
+        scenario_name: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Calculate total net change for all land use types.
+        
+        Args:
+            start_year: Starting year for analysis
+            end_year: Ending year for analysis
+            scenario_name: Scenario name
+            
+        Returns:
+            List of dictionaries containing net change for each land use type
+        """
+        conn = None
+        try:
+            conn = DatabaseConnection.get_connection()
+            cursor = conn.cursor()
+            
+            # Get scenario ID
+            cursor.execute(
+                "SELECT scenario_id FROM scenarios WHERE scenario_name = ?", 
+                (scenario_name,)
+            )
+            scenario_id = cursor.fetchone()
+            if not scenario_id:
+                raise ValueError(f"Scenario not found: {scenario_name}")
+            scenario_id = scenario_id[0]
+            
+            # Get time step IDs for the specified years
+            cursor.execute(
+                "SELECT time_step_id FROM time_steps WHERE start_year >= ? AND end_year <= ?", 
+                (start_year, end_year)
+            )
+            time_step_ids = [row[0] for row in cursor.fetchall()]
+            if not time_step_ids:
+                raise ValueError(f"No time steps found between {start_year} and {end_year}")
+            
+            # Get distinct land use types
+            cursor.execute(
+                """
+                SELECT DISTINCT from_land_use AS land_use FROM land_use_transitions
+                UNION
+                SELECT DISTINCT to_land_use AS land_use FROM land_use_transitions
+                """
+            )
+            land_use_types = [row[0] for row in cursor.fetchall()]
+            
+            # Calculate net change for each land use type
+            results = []
+            for land_use in land_use_types:
+                query = """
+                    SELECT 
+                        ? AS land_use,
+                        SUM(CASE WHEN to_land_use = ? THEN acres ELSE 0 END) - 
+                        SUM(CASE WHEN from_land_use = ? THEN acres ELSE 0 END) AS net_change
+                    FROM 
+                        land_use_transitions
+                    WHERE 
+                        scenario_id = ? 
+                        AND time_step_id IN ({})
+                """.format(','.join(['?'] * len(time_step_ids)))
+                
+                params = [land_use, land_use, land_use, scenario_id] + time_step_ids
+                cursor.execute(query, params)
+                row = cursor.fetchone()
+                
+                if row and row[1] is not None:
+                    results.append({
+                        'land_use': row[0],
+                        'net_change': row[1]
+                    })
+            
+            # Sort results by absolute net change (descending)
+            results.sort(key=lambda x: abs(x['net_change']), reverse=True)
+            
+            return results
+        except Exception as e:
+            logger.error(f"Error calculating total net change: {e}")
             raise
         finally:
             if conn and conn != DatabaseConnection._connection:

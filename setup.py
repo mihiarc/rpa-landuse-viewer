@@ -6,13 +6,9 @@ setup(
     packages=find_packages(),
     install_requires=[
         "pandas",
-        "plotly",
-        "folium",
         "pytest",
-        "mysql-connector-python",
         "pyarrow",
-        "tqdm",
-        "python-dotenv"
+        "tqdm"
     ],
     python_requires=">=3.8",
 ) 
