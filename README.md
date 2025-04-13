@@ -75,11 +75,19 @@ conda activate rpa_landuse
 python -m venv .venv
 source .venv/bin/activate  # On Linux/Mac
 # .venv\Scripts\activate  # On Windows
+
+# OR using UV (recommended)
+uv venv .venv-py312 --python 3.12
+source .venv-py312/bin/activate  # On Linux/Mac
+# .venv-py312\Scripts\activate  # On Windows
 ```
 
 2. Install the package in development mode:
 ```bash
 pip install -e .
+
+# OR using UV
+uv pip install -r requirements.txt
 ```
 
 Required dependencies:
@@ -87,6 +95,7 @@ Required dependencies:
 - SQLite3: Database operations (built into Python)
 - PyArrow: Parquet file handling
 - Testing tools (pytest)
+- NumPy: <2.0.0 for compatibility with pandas 1.5.3
 
 ## Data Loading
 
@@ -164,3 +173,50 @@ The SQLite database includes the following tables:
    - from_land_use
    - to_land_use
    - acres
+
+## Streamlit Dashboard App
+
+A Streamlit-based web application is provided for interactive visualization and analysis of the land use change data. The app features:
+
+1. Data filtering by:
+   - County
+   - Time period (start and end years)
+   - Land use types
+
+2. Multiple view options:
+   - Data tables with land use transition details
+   - Statistical summaries of land changes
+   - Map visualizations (coming soon)
+   
+3. AI-powered analysis:
+   - Natural language querying of the data using PandasAI
+   - Ask questions about trends, patterns, and statistical information
+
+### Running the Dashboard
+
+1. Set up environment variables:
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit the .env file to add your OpenAI API key
+nano .env  # or use any text editor
+```
+
+2. Run the application:
+```bash
+streamlit run app.py
+
+# OR use the provided script (Linux/Mac)
+./run_with_py312.sh
+```
+
+3. Open your browser to http://localhost:8501
+
+### Example Queries for PandasAI
+
+Once the app is running, you can ask questions about the data such as:
+- "What land use type lost the most acreage?"
+- "What's the top destination for converted forest land?"
+- "Show me a bar chart of acres by land use type"
+- "Calculate the percentage change for each land use type"

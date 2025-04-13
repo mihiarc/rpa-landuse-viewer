@@ -12,6 +12,54 @@ class LandUseQueries:
     """Implementation of common land use change analysis queries."""
     
     @staticmethod
+    def _find_matching_time_periods(cursor, start_year, end_year):
+        """
+        Helper method to find time periods that match or overlap with the requested range.
+        If no overlapping periods are found, falls back to closest period.
+        
+        Args:
+            cursor: Database cursor
+            start_year: Starting year for analysis
+            end_year: Ending year for analysis
+            
+        Returns:
+            List of time_step_ids that match or overlap with the requested range
+        """
+        # Try overlapping periods first
+        cursor.execute(
+            """
+            SELECT time_step_id 
+            FROM time_steps 
+            WHERE NOT (end_year <= ? OR start_year >= ?)
+            ORDER BY start_year
+            """, 
+            (start_year, end_year)
+        )
+        time_step_ids = [row[0] for row in cursor.fetchall()]
+        
+        if not time_step_ids:
+            # Find closest time period as fallback
+            cursor.execute(
+                """
+                SELECT time_step_id, start_year, end_year,
+                       ABS(? - start_year) + ABS(? - end_year) as distance
+                FROM time_steps
+                ORDER BY distance
+                LIMIT 1
+                """, 
+                (start_year, end_year)
+            )
+            closest_period = cursor.fetchone()
+            if closest_period:
+                time_step_ids = [closest_period[0]]
+                logger.info(f"No overlapping time periods found between {start_year} and {end_year}. "
+                           f"Using closest period: {closest_period[1]}-{closest_period[2]}")
+            else:
+                raise ValueError("No time periods found in the database")
+        
+        return time_step_ids
+    
+    @staticmethod
     def analyze_county_transitions(
         county_fips: str,
         start_year: int,
@@ -47,14 +95,8 @@ class LandUseQueries:
                 raise ValueError(f"Scenario not found: {scenario_name}")
             scenario_id = scenario_id[0]
             
-            # Get the time step IDs
-            cursor.execute(
-                "SELECT time_step_id FROM time_steps WHERE start_year >= ? AND end_year <= ?", 
-                (start_year, end_year)
-            )
-            time_step_ids = [row[0] for row in cursor.fetchall()]
-            if not time_step_ids:
-                raise ValueError(f"No time steps found between {start_year} and {end_year}")
+            # Get the time step IDs using our helper method
+            time_step_ids = LandUseQueries._find_matching_time_periods(cursor, start_year, end_year)
             
             # Build the query
             query = """
@@ -105,8 +147,8 @@ class LandUseQueries:
             logger.error(f"Error analyzing county transitions: {e}")
             raise
         finally:
-            if conn and conn != DatabaseConnection._connection:
-                conn.close()
+            if conn:
+                DatabaseConnection.close_connection(conn)
     
     @staticmethod
     def compare_scenarios(
@@ -156,16 +198,12 @@ class LandUseQueries:
                     'ssp': row[4]
                 })
             
+            # Get time step IDs using our helper method
+            time_step_ids = LandUseQueries._find_matching_time_periods(cursor, start_year, end_year)
+            
             # Calculate net change for each scenario
             results = []
             for scenario in scenarios:
-                # Get time steps
-                cursor.execute(
-                    "SELECT time_step_id FROM time_steps WHERE start_year >= ? AND end_year <= ?", 
-                    (start_year, end_year)
-                )
-                time_step_ids = [row[0] for row in cursor.fetchall()]
-                
                 # Calculate net change
                 query = """
                     SELECT 
@@ -196,8 +234,8 @@ class LandUseQueries:
             logger.error(f"Error comparing scenarios: {e}")
             raise
         finally:
-            if conn and conn != DatabaseConnection._connection:
-                conn.close()
+            if conn:
+                DatabaseConnection.close_connection(conn)
     
     @staticmethod
     def major_transitions(
@@ -233,14 +271,8 @@ class LandUseQueries:
                 raise ValueError(f"Scenario not found: {scenario_name}")
             scenario_id = scenario_id[0]
             
-            # Get time step IDs
-            cursor.execute(
-                "SELECT time_step_id FROM time_steps WHERE start_year >= ? AND end_year <= ?", 
-                (start_year, end_year)
-            )
-            time_step_ids = [row[0] for row in cursor.fetchall()]
-            if not time_step_ids:
-                raise ValueError(f"No time steps found between {start_year} and {end_year}")
+            # Get time step IDs using our helper method
+            time_step_ids = LandUseQueries._find_matching_time_periods(cursor, start_year, end_year)
             
             # Get major transitions
             query = """
@@ -278,8 +310,8 @@ class LandUseQueries:
             logger.error(f"Error getting major transitions: {e}")
             raise
         finally:
-            if conn and conn != DatabaseConnection._connection:
-                conn.close()
+            if conn:
+                DatabaseConnection.close_connection(conn)
     
     @staticmethod
     def top_counties_by_change(
@@ -319,15 +351,9 @@ class LandUseQueries:
                 raise ValueError(f"Scenario not found: {scenario_name}")
             scenario_id = scenario_id[0]
             
-            # Get time step IDs
-            cursor.execute(
-                "SELECT time_step_id FROM time_steps WHERE start_year >= ? AND end_year <= ?", 
-                (start_year, end_year)
-            )
-            time_step_ids = [row[0] for row in cursor.fetchall()]
-            if not time_step_ids:
-                raise ValueError(f"No time steps found between {start_year} and {end_year}")
-                
+            # Get time step IDs using our helper method
+            time_step_ids = LandUseQueries._find_matching_time_periods(cursor, start_year, end_year)
+            
             # Calculate net change by county
             query = """
                 SELECT 
@@ -372,8 +398,8 @@ class LandUseQueries:
             logger.error(f"Error finding top counties by change: {e}")
             raise
         finally:
-            if conn and conn != DatabaseConnection._connection:
-                conn.close()
+            if conn:
+                DatabaseConnection.close_connection(conn)
     
     @staticmethod
     def check_data_integrity(scenario_name: str) -> Dict[str, List[Dict[str, Any]]]:
@@ -476,8 +502,8 @@ class LandUseQueries:
             logger.error(f"Error checking data integrity: {e}")
             raise
         finally:
-            if conn and conn != DatabaseConnection._connection:
-                conn.close()
+            if conn:
+                DatabaseConnection.close_connection(conn)
     
     @staticmethod
     def rank_scenarios_by_forest_loss(
@@ -561,8 +587,8 @@ class LandUseQueries:
             logger.error(f"Error ranking scenarios by forest loss: {e}")
             raise
         finally:
-            if conn and conn != DatabaseConnection._connection:
-                conn.close()
+            if conn:
+                DatabaseConnection.close_connection(conn)
     
     @staticmethod
     def total_net_change(
@@ -596,14 +622,8 @@ class LandUseQueries:
                 raise ValueError(f"Scenario not found: {scenario_name}")
             scenario_id = scenario_id[0]
             
-            # Get time step IDs for the specified years
-            cursor.execute(
-                "SELECT time_step_id FROM time_steps WHERE start_year >= ? AND end_year <= ?", 
-                (start_year, end_year)
-            )
-            time_step_ids = [row[0] for row in cursor.fetchall()]
-            if not time_step_ids:
-                raise ValueError(f"No time steps found between {start_year} and {end_year}")
+            # Get time step IDs using our helper method
+            time_step_ids = LandUseQueries._find_matching_time_periods(cursor, start_year, end_year)
             
             # Get distinct land use types
             cursor.execute(
@@ -648,5 +668,5 @@ class LandUseQueries:
             logger.error(f"Error calculating total net change: {e}")
             raise
         finally:
-            if conn and conn != DatabaseConnection._connection:
-                conn.close() 
+            if conn:
+                DatabaseConnection.close_connection(conn) 
