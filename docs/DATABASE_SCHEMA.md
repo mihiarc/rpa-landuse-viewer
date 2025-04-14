@@ -12,41 +12,64 @@ This document provides a comprehensive overview of the database schema used in t
 
 ```mermaid
 erDiagram
+    SCENARIOS ||--o{ LAND_USE_TRANSITIONS : has
+    TIME_STEPS ||--o{ LAND_USE_TRANSITIONS : contains
+    COUNTIES ||--o{ LAND_USE_TRANSITIONS : includes
+    STATES ||--o{ COUNTIES : contains
+    STATES ||--o{ RPA_STATE_MAPPING : "belongs to"
+    RPA_REGIONS ||--o{ RPA_SUBREGIONS : contains
+    RPA_SUBREGIONS ||--o{ RPA_STATE_MAPPING : includes
+    
     SCENARIOS {
-        int scenario_id PK "INTEGER PRIMARY KEY AUTOINCREMENT"
-        string scenario_name "TEXT UNIQUE NOT NULL"
-        string gcm "TEXT NOT NULL"
-        string rcp "TEXT NOT NULL"
-        string ssp "TEXT NOT NULL"
-    }
-    TIME_STEPS {
-        int time_step_id PK "INTEGER PRIMARY KEY AUTOINCREMENT"
-        int start_year "INTEGER NOT NULL"
-        int end_year "INTEGER NOT NULL"
-    }
-    STATES {
-        string state_fips PK "TEXT PRIMARY KEY"
-        string state_name "TEXT NOT NULL"
-        string state_abbr "TEXT NOT NULL"
-    }
-    COUNTIES {
-        string fips_code PK "TEXT PRIMARY KEY"
-        string county_name "TEXT"
-    }
-    LAND_USE_TRANSITIONS {
-        int transition_id PK "INTEGER PRIMARY KEY AUTOINCREMENT"
-        int scenario_id FK "INTEGER NOT NULL"
-        int time_step_id FK "INTEGER NOT NULL"
-        string fips_code FK "TEXT NOT NULL"
-        string from_land_use "TEXT NOT NULL"
-        string to_land_use "TEXT NOT NULL"
-        float acres "REAL NOT NULL"
+        int scenario_id PK
+        string scenario_name
+        string gcm
+        string rcp
+        string ssp
     }
     
-    SCENARIOS ||--o{ LAND_USE_TRANSITIONS : "has"
-    TIME_STEPS ||--o{ LAND_USE_TRANSITIONS : "contains"
-    STATES ||--o{ COUNTIES : "contains"
-    COUNTIES ||--o{ LAND_USE_TRANSITIONS : "includes"
+    TIME_STEPS {
+        int time_step_id PK
+        int start_year
+        int end_year
+    }
+    
+    STATES {
+        string state_fips PK
+        string state_name
+        string state_abbr
+    }
+    
+    COUNTIES {
+        string fips_code PK
+        string county_name
+    }
+    
+    LAND_USE_TRANSITIONS {
+        int transition_id PK
+        int scenario_id FK
+        int time_step_id FK
+        string fips_code FK
+        string from_land_use
+        string to_land_use
+        float acres
+    }
+    
+    RPA_REGIONS {
+        string region_id PK
+        string region_name
+    }
+    
+    RPA_SUBREGIONS {
+        string subregion_id PK
+        string subregion_name
+        string parent_region_id FK
+    }
+    
+    RPA_STATE_MAPPING {
+        string state_fips FK
+        string subregion_id FK
+    }
 ```
 
 ## Table Descriptions
@@ -109,6 +132,36 @@ Stores information about land use transitions between different land types.
 | from_land_use | TEXT NOT NULL | Original land use type (Crop, Forest, Pasture, Range, Urban) |
 | to_land_use | TEXT NOT NULL | New land use type (Crop, Forest, Pasture, Range, Urban) |
 | acres | REAL NOT NULL | Land area in hundreds of acres |
+
+### 6. `rpa_regions` (4 records)
+
+Stores information about RPA (Resource Planning Act) Assessment regions.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| region_id | TEXT PRIMARY KEY | Unique identifier for the RPA region (e.g., "NORTH", "SOUTH") |
+| region_name | TEXT NOT NULL | Full name of the region (e.g., "North Region") |
+
+### 7. `rpa_subregions` (13 records)
+
+Stores information about RPA Assessment subregions.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| subregion_id | TEXT PRIMARY KEY | Unique identifier for the subregion (e.g., "NORTHEAST", "PACNW") |
+| subregion_name | TEXT NOT NULL | Full name of the subregion (e.g., "Northeast", "Pacific Northwest") |
+| parent_region_id | TEXT NOT NULL | Foreign key to rpa_regions.region_id |
+
+### 8. `rpa_state_mapping` (50 records)
+
+Maps states to RPA subregions to establish the hierarchical relationship.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| state_fips | TEXT NOT NULL | Foreign key to states.state_fips |
+| subregion_id | TEXT NOT NULL | Foreign key to rpa_subregions.subregion_id |
+
+The table includes a composite primary key of (state_fips, subregion_id) to prevent duplicate mappings.
 
 ## Views
 
@@ -183,6 +236,58 @@ Aggregated metrics for land use by state.
 | to_land_use | New land use type |
 | total_acres | Total acres transitioned |
 | county_count | Number of counties with this transition |
+
+### 6. `rpa_hierarchy`
+
+Provides a comprehensive hierarchical view of the RPA region structure from counties to regions.
+
+| Column | Description |
+|--------|-------------|
+| region_id | Identifier for the region entity (could be county FIPS, state FIPS, subregion ID, or region ID) |
+| region_name | Name of the region entity |
+| region_type | Type of region ('COUNTY', 'STATE', 'SUBREGION', or 'RPA_REGION') |
+| parent_id | ID of the parent entity in the hierarchy |
+| level | Hierarchy level (0 for counties, 1 for states, 2 for subregions, 3 for regions) |
+| subregion_id | Subregion ID that this entity belongs to (NULL for region level) |
+| subregion_name | Name of the subregion |
+| rpa_region_id | Region ID that this entity belongs to |
+| rpa_region_name | Name of the RPA region |
+
+### 7. `rpa_region_land_use`
+
+Aggregates land use transitions at the RPA region level.
+
+| Column | Description |
+|--------|-------------|
+| scenario_id | ID of the scenario |
+| scenario_name | Name of the scenario |
+| start_year | Start year of the time period |
+| end_year | End year of the time period |
+| rpa_region_id | ID of the RPA region |
+| rpa_region_name | Name of the RPA region |
+| subregion_id | ID of the subregion |
+| subregion_name | Name of the subregion |
+| from_land_use | Original land use type |
+| to_land_use | New land use type |
+| acres | Total acres transitioned |
+
+### 8. `rpa_subregion_land_use`
+
+Aggregates land use transitions at the RPA subregion level.
+
+| Column | Description |
+|--------|-------------|
+| scenario_id | ID of the scenario |
+| scenario_name | Name of the scenario |
+| start_year | Start year of the time period |
+| end_year | End year of the time period |
+| subregion_id | ID of the subregion |
+| subregion_name | Name of the subregion |
+| parent_region_id | ID of the parent RPA region |
+| parent_region_name | Name of the parent RPA region |
+| from_land_use | Original land use type |
+| to_land_use | New land use type |
+| acres | Total acres transitioned |
 
 ## Indexes
 
@@ -277,6 +382,10 @@ CREATE INDEX idx_to_land_use ON land_use_transitions (to_land_use);
 
 -- For aggregation queries on acres
 CREATE INDEX idx_acres ON land_use_transitions (acres);
+
+-- For RPA region queries
+CREATE INDEX idx_state_mapping_subregion ON rpa_state_mapping (subregion_id);
+CREATE INDEX idx_subregions_parent ON rpa_subregions (parent_region_id);
 ```
 
 ### 6. Add Database Comments
@@ -303,16 +412,17 @@ CREATE TABLE schema_documentation (
 flowchart TD
     A[Raw RPA Data: JSON] -->|src/data_setup/converter.py| B[Processed Data: Parquet]
     B -->|src/data_setup/db_loader.py| C[SQLite Database]
-    
     C -->|src/db/queries.py| D[Query Results]
-    D -->|app.py, Home.py| E[Streamlit UI]
+    D -->|app.py| E[Streamlit UI]
     
-    subgraph "Database Schema"
-    F[scenarios table] --- G[counties table]
-    H[time_steps table] --- I[land_use_transitions table]
-    F --- I
-    G --- I
-    H --- I
+    subgraph Database["Database Schema"]
+        F[Scenarios] -.->|referenced by| I[Land Use Transitions]
+        H[Time Steps] -.->|referenced by| I
+        G[Counties] -.->|referenced by| I
+        M[States] -.->|contains| G
+        M -.->|mapped to| L[RPA State Mapping]
+        J[RPA Regions] -.->|contains| K[RPA Subregions]
+        K -.->|referenced by| L
     end
 ```
 
@@ -327,7 +437,8 @@ To effectively version control this SQLite schema:
    migrations/
    ├── 001_initial_schema.sql
    ├── 002_add_indexes.sql
-   └── 003_add_constraints.sql
+   ├── 003_add_constraints.sql
+   └── 004_add_rpa_regions.sql
    ```
 
 3. **Schema Dump Command**: Use the following command to dump the current schema for version control:
@@ -345,7 +456,7 @@ To effectively version control this SQLite schema:
    # Count records in each table
    echo "Table record counts:" > docs/schema_stats.md
    echo "-------------------" >> docs/schema_stats.md
-   sqlite3 data/database/rpa_landuse.db "SELECT 'scenarios: ' || COUNT(*) FROM scenarios; SELECT 'time_steps: ' || COUNT(*) FROM time_steps; SELECT 'counties: ' || COUNT(*) FROM counties; SELECT 'land_use_transitions: ' || COUNT(*) FROM land_use_transitions;" >> docs/schema_stats.md
+   sqlite3 data/database/rpa_landuse.db "SELECT 'scenarios: ' || COUNT(*) FROM scenarios; SELECT 'time_steps: ' || COUNT(*) FROM time_steps; SELECT 'counties: ' || COUNT(*) FROM counties; SELECT 'land_use_transitions: ' || COUNT(*) FROM land_use_transitions; SELECT 'rpa_regions: ' || COUNT(*) FROM rpa_regions; SELECT 'rpa_subregions: ' || COUNT(*) FROM rpa_subregions; SELECT 'rpa_state_mapping: ' || COUNT(*) FROM rpa_state_mapping;" >> docs/schema_stats.md
    ```
 
 ## Query Performance Considerations
@@ -361,6 +472,7 @@ To optimize query performance, consider the following:
 4. **Consider Additional Indexes**: If certain query patterns emerge that are not covered by the existing index, consider adding additional indexes on:
    - `from_land_use` and `to_land_use` columns if frequently filtering by these values
    - `acres` column if performing range queries or aggregations on this column
+   - `subregion_id` in the `rpa_state_mapping` table if frequently joining on this column
 
 5. **Transaction Management**: Wrap multiple related operations within transactions to improve performance.
 
@@ -419,4 +531,19 @@ JOIN time_steps ts ON lt.time_step_id = ts.time_step_id
 WHERE lt.scenario_id = 1
 GROUP BY ts.start_year, ts.end_year
 ORDER BY ts.start_year;
+```
+
+### Get land use transitions aggregated by RPA region
+
+```sql
+SELECT r.region_name, lt.from_land_use, lt.to_land_use, SUM(lt.acres) as total_acres
+FROM land_use_transitions lt
+JOIN counties c ON lt.fips_code = c.fips_code
+JOIN states s ON SUBSTR(c.fips_code, 1, 2) = s.state_fips
+JOIN rpa_state_mapping rsm ON s.state_fips = rsm.state_fips
+JOIN rpa_subregions sr ON rsm.subregion_id = sr.subregion_id
+JOIN rpa_regions r ON sr.parent_region_id = r.region_id
+WHERE lt.scenario_id = 1
+GROUP BY r.region_name, lt.from_land_use, lt.to_land_use
+ORDER BY r.region_name, lt.from_land_use, lt.to_land_use;
 ``` 
