@@ -130,6 +130,12 @@ def create_sankey_diagram(df, title="Land Use Transitions (Acres)"):
     if df.empty:
         return None
     
+    # Filter out transitions where land use doesn't change (e.g., forest stays forest)
+    df = df[df['from_land_use'] != df['to_land_use']].copy()
+    
+    if df.empty:
+        return None
+    
     # Get unique land use types
     all_nodes = sorted(list(set(df['from_land_use'].unique()) | set(df['to_land_use'].unique())))
     
@@ -176,6 +182,12 @@ def create_sankey_diagram(df, title="Land Use Transitions (Acres)"):
 
 def create_transition_matrix(df):
     """Create a transition matrix heatmap."""
+    if df.empty:
+        return None
+    
+    # Filter out transitions where land use doesn't change (e.g., forest stays forest)
+    df = df[df['from_land_use'] != df['to_land_use']].copy()
+    
     if df.empty:
         return None
     
