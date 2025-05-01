@@ -10,11 +10,6 @@ import numpy as np
 sys.path.append(str(Path(__file__).parent.parent))
 from src.db.database import DatabaseConnection
 
-# Database configuration
-DB_CONFIG = {
-    'database_path': os.getenv('DB_PATH', 'data/database/rpa_landuse_duck.db')
-}
-
 # Define expected tables and their expected row counts (approximate)
 EXPECTED_TABLES = [
     'scenarios',
@@ -31,28 +26,24 @@ EXPECTED_MIN_ROW_COUNTS = {
 }
 
 
-def test_db_file_exists():
+def test_db_file_exists(db_path):
     """Test that the DuckDB database file exists."""
-    db_path = DB_CONFIG['database_path']
     assert os.path.exists(db_path), f"Database file doesn't exist at {db_path}"
     assert os.path.getsize(db_path) > 1000000, "Database file is too small, might not have data"
 
 
-def test_db_connection():
+def test_db_connection(db_connection):
     """Test that we can connect to the database."""
-    conn = DatabaseConnection.get_connection()
-    assert conn is not None, "Failed to connect to database"
-    version = conn.execute("SELECT version()").fetchone()[0]
+    assert db_connection is not None, "Failed to connect to database"
+    version = db_connection.execute("SELECT version()").fetchone()[0]
     assert version is not None, "Failed to get DuckDB version"
     print(f"DuckDB version: {version}")
 
 
-def test_tables_exist():
+def test_tables_exist(db_connection):
     """Test that all expected tables exist in the database."""
-    conn = DatabaseConnection.get_connection()
-    
     # Get list of tables
-    result = conn.execute("""
+    result = db_connection.execute("""
         SELECT table_name 
         FROM information_schema.tables 
         WHERE table_schema = 'main' AND table_type = 'BASE TABLE'
@@ -64,23 +55,19 @@ def test_tables_exist():
         assert table in tables, f"Table '{table}' not found in database"
 
 
-def test_table_row_counts():
+def test_table_row_counts(db_connection):
     """Test that tables have the expected number of rows."""
-    conn = DatabaseConnection.get_connection()
-    
     for table, min_count in EXPECTED_MIN_ROW_COUNTS.items():
-        result = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+        result = db_connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
         count = result[0]
         assert count >= min_count, f"Table '{table}' has {count} rows, expected at least {min_count}"
         print(f"Table '{table}' has {count} rows")
 
 
-def test_scenario_data():
+def test_scenario_data(db_connection):
     """Test that scenario data is valid."""
-    conn = DatabaseConnection.get_connection()
-    
     # Check scenarios have correct structure
-    scenarios = conn.execute("SELECT scenario_id, scenario_name, gcm, rcp, ssp FROM scenarios LIMIT 5").fetchall()
+    scenarios = db_connection.execute("SELECT scenario_id, scenario_name, gcm, rcp, ssp FROM scenarios LIMIT 5").fetchall()
     assert len(scenarios) > 0, "No scenarios found"
     
     # Check a scenario has valid data
@@ -98,11 +85,9 @@ def test_scenario_data():
         assert len(parts) >= 3, f"Invalid scenario name parts: {parts}"
 
 
-def test_time_steps():
+def test_time_steps(db_connection):
     """Test that time steps are valid."""
-    conn = DatabaseConnection.get_connection()
-    
-    time_steps = conn.execute("SELECT time_step_id, start_year, end_year FROM time_steps").fetchall()
+    time_steps = db_connection.execute("SELECT time_step_id, start_year, end_year FROM time_steps").fetchall()
     assert len(time_steps) > 0, "No time steps found"
     
     for step in time_steps:
@@ -113,11 +98,9 @@ def test_time_steps():
         assert int(end_year) > int(start_year), f"Invalid time step: {start_year}-{end_year}"
 
 
-def test_counties():
+def test_counties(db_connection):
     """Test that counties are valid."""
-    conn = DatabaseConnection.get_connection()
-    
-    counties = conn.execute("SELECT fips_code, county_name FROM counties LIMIT 10").fetchall()
+    counties = db_connection.execute("SELECT fips_code, county_name FROM counties LIMIT 10").fetchall()
     assert len(counties) > 0, "No counties found"
     
     for county in counties:
@@ -127,11 +110,9 @@ def test_counties():
         assert len(fips_code) == 5, f"Invalid FIPS code length: {fips_code}"
 
 
-def test_land_use_transitions():
+def test_land_use_transitions(db_connection):
     """Test that land use transitions are valid."""
-    conn = DatabaseConnection.get_connection()
-    
-    transitions = conn.execute("""
+    transitions = db_connection.execute("""
         SELECT 
             t.transition_id, 
             t.scenario_id, 
@@ -164,10 +145,8 @@ def test_land_use_transitions():
         assert transition[9] is not None, "end_year is None"
 
 
-def test_simple_query():
+def test_simple_query(db_connection):
     """Test that we can run a simple query."""
-    conn = DatabaseConnection.get_connection()
-    
     query = """
         SELECT 
             s.scenario_name,
@@ -181,7 +160,7 @@ def test_simple_query():
         LIMIT 5
     """
     
-    results = conn.execute(query).fetchall()
+    results = db_connection.execute(query).fetchall()
     assert len(results) > 0, "No results from simple query"
     
     for result in results:

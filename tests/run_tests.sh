@@ -17,20 +17,17 @@ fi
 # Activate virtual environment
 source .venv-test/bin/activate
 
-# Install dependencies with uv from requirements.txt
-echo "Installing dependencies with uv from requirements.txt..."
-uv pip install -r requirements.txt
+# Install the project with development dependencies using pyproject.toml
+echo "Installing project with development dependencies..."
+uv pip install -e ".[dev]"
 
-# Install test dependencies
-echo "Installing test dependencies..."
-uv pip install pytest
+# Run the tests with coverage reporting
+echo "Running tests with coverage..."
+# Use configuration from pyproject.toml for pytest and coverage
+python -m pytest tests/ --cov=src --cov-report=term --cov-report=html:tests/coverage \
+    --ignore=tests/benchmark_duckdb.py \
+    --ignore=tests/generate_query_results.py \
+    --ignore=dev/
 
-# Install the package in development mode
-echo "Installing rpa-landuse-viewer in development mode..."
-uv pip install -e .
-
-# Run the tests
-echo "Running tests..."
-python -m pytest tests/test_common_queries.py -v
-
-echo "Tests completed." 
+echo "Tests completed."
+echo "Coverage report available in tests/coverage directory." 

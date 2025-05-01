@@ -23,8 +23,8 @@ TEST_DB_PATH = ":memory:"
 def db_connection():
     """Fixture to create and return a DuckDB connection for testing."""
     conn = duckdb.connect(database=TEST_DB_PATH)
-    # Enable parallelism (max threads)
-    conn.execute("PRAGMA threads=0")
+    # Enable parallelism (with at least 1 thread)
+    conn.execute("PRAGMA threads=1")
     yield conn
     conn.close()
 

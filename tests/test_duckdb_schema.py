@@ -21,7 +21,7 @@ DB_PATH = os.getenv("DB_PATH", "data/database/rpa_landuse_duck.db")
 EXPECTED_SCHEMAS = {
     "scenarios": {
         "columns": [
-            {"name": "scenario_id", "type": "INTEGER", "nullable": False, "primary_key": True},
+            {"name": "scenario_id", "type": "BIGINT", "nullable": False, "primary_key": True},
             {"name": "scenario_name", "type": "VARCHAR", "nullable": True},
             {"name": "gcm", "type": "VARCHAR", "nullable": True},
             {"name": "rcp", "type": "VARCHAR", "nullable": True},
