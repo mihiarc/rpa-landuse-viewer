@@ -1,0 +1,218 @@
+/* 
+  RPA Land Use Viewer - Custom CSS Styles 
+  Contains all custom styling for the application
+*/
+
+/* Global styling */
+.main {
+    background-color: #f8f9fa;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+    color: #1e3a8a;
+    font-weight: 600;
+}
+
+h1 {
+    font-size: 2.2rem;
+    margin-bottom: 1rem;
+}
+
+h2 {
+    font-size: 1.8rem;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+h3 {
+    font-size: 1.5rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+p {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #4b5563;
+}
+
+a {
+    color: #2563eb;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Card styling */
+.card {
+    padding: 20px;
+    border-radius: 8px;
+    background-color: white;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+/* Sidebar styling */
+.css-1oe6o3l, .css-1wrcr25 {
+    background-color: #1e293b;
+}
+
+.css-1629p8f h1 {
+    color: white;
+}
+
+/* Button styling */
+.stButton > button {
+    background-color: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.stButton > button:hover {
+    background-color: #1d4ed8;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Select boxes */
+.stSelectbox > div > div {
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 0.25rem;
+}
+
+/* Map container */
+.map-container {
+    height: 600px;
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Metrics styling */
+div[data-testid="stMetricValue"] {
+    font-size: 2.5rem !important;
+    font-weight: 700 !important;
+    color: #2563eb !important;
+}
+
+div[data-testid="stMetricLabel"] {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    color: #4b5563 !important;
+}
+
+/* Dataframe styling */
+.dataframe-container {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Animation for loading elements */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fadeIn {
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+/* Info box styling */
+.info-box {
+    background-color: #e0f2fe;
+    border-left: 4px solid #0ea5e9;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 0 4px 4px 0;
+}
+
+/* Warning box styling */
+.warning-box {
+    background-color: #fff7ed;
+    border-left: 4px solid #f97316;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 0 4px 4px 0;
+}
+
+/* Footer styling */
+.footer {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+    text-align: center;
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+/* Dashboard card styling */
+.dashboard-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    height: 100%;
+}
+
+.dashboard-card h4 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #1e3a8a;
+    font-size: 1.25rem;
+}
+
+/* Make tables more readable */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead tr th {
+    background-color: #f3f4f6;
+    padding: 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+tbody tr td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+/* Responsive styling for mobile */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 1.8rem;
+    }
+    
+    h2 {
+        font-size: 1.5rem;
+    }
+    
+    h3 {
+        font-size: 1.2rem;
+    }
+    
+    .map-container {
+        height: 400px;
+    }
+    
+    div[data-testid="stMetricValue"] {
+        font-size: 1.8rem !important;
+    }
+} 

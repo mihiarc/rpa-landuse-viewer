@@ -7,44 +7,40 @@ import pandas as pd
 from pathlib import Path
 import os
 
-# Import utility modules
+# Import shared utility modules
+from src.utils.shared import (
+    get_scenarios,
+    get_years,
+    get_states,
+    get_counties_by_state,
+    get_national_summary,
+    load_css,
+    set_page_config,
+    display_metrics
+)
 from src.utils.data_processing import (
     filter_data,
     aggregate_data
-)
-from src.utils.data_loader import (
-    get_scenarios as get_available_scenarios,
-    get_years as get_available_years,
-    get_states,
-    get_counties_by_state as get_counties_for_state,
-    get_national_summary as load_scenario_data
 )
 from src.utils.data import (
     calculate_percentage,
     get_summary_statistics as calculate_metrics
 )
-from src.utils.visualization import (
-    create_choropleth_map as generate_choropleth,
-    create_bar_chart as generate_bar_chart,
-    create_pie_chart as generate_pie_chart,
-    create_line_chart as generate_line_chart
+from src.utils.visualizations import (
+    create_choropleth_map,
+    create_bar_chart,
+    create_pie_chart,
+    create_line_chart
 )
 
 # Set page configuration
-st.set_page_config(
-    page_title="RPA Land Use Viewer",
-    page_icon="🌆",
-    layout="wide",
-    initial_sidebar_state="expanded"
+set_page_config(
+    title="RPA Land Use Viewer",
+    icon="🌆",
+    layout="wide"
 )
 
 # Load custom CSS
-def load_css():
-    css_file = Path("src/styles/style.css")
-    if css_file.exists():
-        with open(css_file) as f:
-            st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
-
 load_css()
 
 # Application title and description
@@ -58,7 +54,7 @@ Select different scenarios, years, and geographic areas to visualize the data.
 st.sidebar.header("Data Selection")
 
 # Scenario selection
-scenarios = get_available_scenarios()
+scenarios = get_scenarios()
 scenario_names = [f"{s['name']} ({s['gcm']}_{s['rcp']}_{s['ssp']})" for s in scenarios]
 selected_scenario_idx = st.sidebar.selectbox(
     "Select Scenario",
@@ -70,7 +66,7 @@ selected_scenario = scenarios[selected_scenario_idx]
 # Year selection
 year = st.sidebar.selectbox(
     "Select Year",
-    get_available_years()
+    get_years()
 )
 
 # Geographic filters
@@ -96,7 +92,7 @@ if selected_state_name != "All States":
             break
     
     if selected_state_fips:
-        counties_data = get_counties_for_state(selected_state_fips)
+        counties_data = get_counties_by_state(selected_state_fips)
         counties += [county['name'] for county in counties_data]
 
 selected_county = st.sidebar.selectbox(
@@ -114,7 +110,7 @@ vis_type = st.sidebar.selectbox(
 # Data loading with a spinner
 with st.spinner("Loading data..."):
     # Pass only the scenario ID to the load_scenario_data function
-    df = load_scenario_data(selected_scenario['id'], year)
+    df = get_national_summary(selected_scenario['id'], year)
     
     # Check if data was loaded successfully
     if df.empty:
@@ -135,26 +131,7 @@ with st.spinner("Loading data..."):
 # Display metrics
 st.header("Key Metrics")
 metrics = calculate_metrics(filtered_df)
-
-# Create a row of metrics
-metric_cols = st.columns(len(metrics))
-for i, (metric_name, metric_value) in enumerate(metrics.items()):
-    # Format the metric name to be more readable
-    formatted_name = metric_name.replace('_', ' ').title()
-    # Format the value based on type
-    if isinstance(metric_value, (int, float)):
-        if metric_name.startswith('percent'):
-            formatted_value = f"{metric_value:.1f}%"
-        elif metric_value >= 1_000_000:
-            formatted_value = f"{metric_value/1_000_000:.2f}M"
-        elif metric_value >= 1_000:
-            formatted_value = f"{metric_value/1_000:.1f}K"
-        else:
-            formatted_value = f"{metric_value:,.0f}"
-    else:
-        formatted_value = str(metric_value)
-    
-    metric_cols[i].metric(formatted_name, formatted_value)
+display_metrics(metrics)
 
 # Display visualizations
 st.header("Visualization")
@@ -168,12 +145,11 @@ if vis_type == "Map":
         value_col = next((col for col in filtered_df.columns if col.endswith('_acres')), None)
         
         if value_col:
-            fig = generate_choropleth(
+            fig = create_choropleth_map(
                 filtered_df,
                 geo_col='state',
                 value_col=value_col,
-                title=f"{value_col.replace('_', ' ').title()} by State ({year})",
-                scope="usa"
+                title=f"{value_col.replace('_', ' ').title()} by State ({year})"
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -196,13 +172,11 @@ elif vis_type == "Bar Chart":
             else:
                 chart_df = filtered_df
             
-            fig = generate_bar_chart(
+            fig = create_bar_chart(
                 chart_df,
                 x_col='county',
                 y_col=value_col,
-                title=f"{value_col.replace('_', ' ').title()} by County ({year})",
-                x_title="County",
-                y_title=value_col.replace('_', ' ').title()
+                title=f"{value_col.replace('_', ' ').title()} by County ({year})"
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -223,7 +197,7 @@ elif vis_type == "Pie Chart":
             'acres': [filtered_df[col].sum() for col in land_use_cols]
         })
         
-        fig = generate_pie_chart(
+        fig = create_pie_chart(
             pie_data,
             values_col='acres',
             names_col='land_use_type',
@@ -250,6 +224,9 @@ The data includes metrics like developed acres, population, employment, and more
 For more information, please visit the [Regional Plan Association website](https://rpa.org/).
 """)
 
-# Footer
-st.markdown("---")
-st.markdown("© 2023 Regional Plan Association | Data Visualization Tool") 
+# Display footer
+st.markdown("""
+<div class="footer">
+    <p>© 2024 RPA Land Use Viewer | Developed by the RPA Land Use Team</p>
+</div>
+""", unsafe_allow_html=True) 
