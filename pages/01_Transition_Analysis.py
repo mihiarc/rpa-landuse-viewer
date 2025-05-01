@@ -130,8 +130,15 @@ def create_sankey_diagram(df, title="Land Use Transitions (Acres)"):
     if df.empty:
         return None
     
+    # Create a copy of the dataframe to modify
+    df = df.copy()
+    
+    # Normalize land use names (trim whitespace, convert to lowercase for comparison)
+    df['from_land_use_norm'] = df['from_land_use'].str.strip().str.lower()
+    df['to_land_use_norm'] = df['to_land_use'].str.strip().str.lower()
+    
     # Filter out transitions where land use doesn't change (e.g., forest stays forest)
-    df = df[df['from_land_use'] != df['to_land_use']].copy()
+    df = df[df['from_land_use_norm'] != df['to_land_use_norm']]
     
     if df.empty:
         return None
@@ -185,8 +192,15 @@ def create_transition_matrix(df):
     if df.empty:
         return None
     
+    # Create a copy of the dataframe to modify
+    df = df.copy()
+    
+    # Normalize land use names (trim whitespace, convert to lowercase for comparison)
+    df['from_land_use_norm'] = df['from_land_use'].str.strip().str.lower()
+    df['to_land_use_norm'] = df['to_land_use'].str.strip().str.lower()
+    
     # Filter out transitions where land use doesn't change (e.g., forest stays forest)
-    df = df[df['from_land_use'] != df['to_land_use']].copy()
+    df = df[df['from_land_use_norm'] != df['to_land_use_norm']]
     
     if df.empty:
         return None
@@ -200,14 +214,28 @@ def create_transition_matrix(df):
         fill_value=0
     )
     
+    # Create custom text for cells - blank for diagonal elements
+    text_matrix = matrix.copy()
+    for land_type in text_matrix.index:
+        if land_type in text_matrix.columns:
+            text_matrix.loc[land_type, land_type] = ""
+    
     # Create a heatmap
     fig = px.imshow(
         matrix,
-        text_auto='.2s',  # Show values with SI prefix
+        text_auto=False,  # Don't auto-generate text
+        custom_data=text_matrix.values,  # Use our custom text matrix
         color_continuous_scale='Viridis',
         aspect="equal",
         labels=dict(x="To Land Use", y="From Land Use", color="Acres"),
         title="Land Use Transition Matrix (Acres)"
+    )
+    
+    # Add custom text to the heatmap
+    fig.update_traces(
+        texttemplate="%{customdata}",
+        textfont={"size": 12},
+        hovertemplate="From: %{y}<br>To: %{x}<br>Acres: %{z:,.2f}<extra></extra>"
     )
     
     # Update layout
