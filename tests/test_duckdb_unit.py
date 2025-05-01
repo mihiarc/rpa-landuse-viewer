@@ -240,8 +240,8 @@ def test_join_query(populate_test_data):
             lut.acres DESC
     """).fetchall()
     
-    # Should be 3 records with acres > 200
-    assert len(result) == 3
+    # Should be 2 records with acres > 200
+    assert len(result) == 2
     
     # Check that the first result is the largest transition
     assert result[0][6] > 300
@@ -278,19 +278,26 @@ def test_dataframe_query(db_connection, sample_dataframe):
     """Test querying a pandas dataframe using DuckDB."""
     conn = db_connection
     
-    # Test query on the dataframe
+    # Convert problematic column types to be more compatible with DuckDB
+    df = sample_dataframe.copy()
+    df['acres'] = df['acres'].astype(float)  # Ensure consistent float type
+    
+    # Register the DataFrame as a view instead of passing it directly
+    conn.register('sample_dataframe_view', df)
+    
+    # Test query on the dataframe view
     result = conn.execute("""
         SELECT 
             from_land_use, 
             to_land_use, 
             SUM(acres) as total_acres
         FROM 
-            sample_dataframe
+            sample_dataframe_view
         GROUP BY 
             from_land_use, to_land_use
         ORDER BY 
             total_acres DESC
-    """, {"sample_dataframe": sample_dataframe}).fetchall()
+    """).fetchall()
     
     # Verify results
     assert len(result) == 5

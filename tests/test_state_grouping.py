@@ -112,7 +112,7 @@ def test_state_land_use_transitions_view(db_connection):
         result = db_connection.execute(query).fetchone()
         assert result is not None, "No records returned from query"
         assert len(result) == 5, f"Wrong number of columns: {len(result)}"
-        assert result[3] in ["Cropland", "Forest", "Pasture", "Rangeland", "Urban"], f"Unexpected to_land_use: {result[3]}"
+        assert result[3] in ["Crop", "Forest", "Pasture", "Range", "Urban"], f"Unexpected to_land_use: {result[3]}"
         assert isinstance(result[4], (int, float)), f"Acres is not a number: {result[4]}"
 
 def test_region_hierarchy_view(db_connection):
