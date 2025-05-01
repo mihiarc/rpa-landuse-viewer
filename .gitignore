@@ -14,88 +14,21 @@ build/
 
 # Environment variables
 .env
-.env.example
 
 # IDE
-.idea/
-.vscode/
-*.swp
-*.swo
 .DS_Store
-
-# Project specific
-*.parquet
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Logs
-*.log
-
-# Large files and datasets
-*.csv
-*.xlsx
-*.xls
-*.zip
-*.rar
-*.7z
-*.gz
-*.tar
-*.dump
-*.sql
-*.db
-*.sqlite
-*.sqlite3
-*.hdf5
-*.h5
-*.npy
-*.npz
-*.pkl
-*.pickle
-*.rds
-*.feather
-*.ftr
-*.dta
-*.sav
-*.mat
-*.json
-outputs/*
-!outputs/.gitkeep
-
-# Temporary files
-tmp/
-temp/
-.tmp/
-.temp/
 
 # Python cache files
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Distribution / packaging
-dist/
-build/
-*.egg-info/
-
 # Virtual environments
 venv/
-env/
-.env/
 
 # IDE settings
 .vscode/
 .idea/
-
-# Local development settings
-*.env
-.env.local
-
-# Test coverage
-.coverage
-htmlcov/
 
 # Database
 *.db
@@ -106,3 +39,7 @@ htmlcov/
 *.csv
 *.json
 !data/county.geo.json
+
+# archive
+dev/
+data/

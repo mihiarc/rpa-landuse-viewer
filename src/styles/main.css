@@ -1,0 +1,73 @@
+.main {
+    background-color: #f8f9fa;
+}
+.title-text {
+    color: #1e3a8a;
+    font-size: 3rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+.subtitle-text {
+    color: #4b5563;
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+}
+.card {
+    padding: 20px;
+    border-radius: 5px;
+    background-color: white;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+.info-card {
+    background-color: #e7f5ff;
+    border-left: 4px solid #1c7ed6;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+}
+.metric-card {
+    background-color: white;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    text-align: center;
+}
+.metric-value {
+    font-size: 2.2rem;
+    font-weight: bold;
+    color: #1e3a8a;
+}
+.metric-label {
+    font-size: 1rem;
+    color: #4b5563;
+}
+.nav-card {
+    background-color: white;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-bottom: 15px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.nav-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+}
+.nav-card-title {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #1e3a8a;
+    margin-bottom: 10px;
+}
+.nav-card-desc {
+    color: #4b5563;
+    font-size: 0.9rem;
+}
+.footer {
+    text-align: center;
+    padding: 20px 0;
+    color: #6b7280;
+    font-size: 0.9rem;
+} 

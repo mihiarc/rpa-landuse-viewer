@@ -1,10 +1,10 @@
 # RPA Land Use Database Schema
 
-This document provides a comprehensive overview of the database schema used in the RPA Land Use Viewer project. The schema is implemented in SQLite, a lightweight, file-based relational database that offers excellent performance for this application.
+This document provides a comprehensive overview of the database schema used in the RPA Land Use Viewer project. The schema is implemented in DuckDB, a high-performance analytical database system that offers excellent capabilities for this application.
 
 ## Database Overview
 
-- **Database File**: `data/database/rpa_landuse.db`
+- **Database File**: `data/database/rpa_landuse_duck.db`
 - **Total Size**: ~319MB
 - **Records**: 5,432,198 land use transitions across 3,068 counties with 20 scenarios and 6 time steps
 
@@ -297,16 +297,16 @@ The database uses the following indexes to improve query performance:
 CREATE INDEX idx_land_use_transitions ON land_use_transitions (scenario_id, time_step_id, fips_code);
 CREATE INDEX idx_from_land_use ON land_use_transitions (from_land_use);
 CREATE INDEX idx_to_land_use ON land_use_transitions (to_land_use);
-CREATE INDEX idx_counties_state_fips ON counties(SUBSTR(fips_code, 1, 2));
+CREATE INDEX idx_counties_state_fips ON counties(SUBSTRING(fips_code, 1, 2));
 ```
 
 The `idx_counties_state_fips` index enables fast filtering of counties by state FIPS code, which is extracted as the first two characters of the county FIPS code.
 
-## SQLite Best Practices
+## DuckDB Best Practices
 
-The schema follows several SQLite best practices:
+The schema follows several DuckDB best practices:
 
-1. **Use of INTEGER PRIMARY KEY**: Primary keys are defined as INTEGER PRIMARY KEY to leverage SQLite's rowid optimization, which makes these fields aliases for the rowid and improves performance.
+1. **Use of INTEGER PRIMARY KEY**: Primary keys are defined as INTEGER PRIMARY KEY for optimal performance.
 
 2. **Foreign Key Constraints**: All relationships between tables are explicitly defined using foreign key constraints to maintain data integrity.
 
@@ -316,44 +316,46 @@ The schema follows several SQLite best practices:
 
 5. **UNIQUE Constraints**: Applied where appropriate to prevent duplicate data (e.g., time_steps table).
 
+6. **Parallelism**: DuckDB allows for multi-threaded query execution which significantly improves analytical query performance.
+
 ## Recommended Schema Improvements
 
-Based on SQLite best practices from GitHub projects, the following improvements could enhance the current schema:
+Based on DuckDB best practices, the following improvements could enhance the current schema:
 
-### 1. Implement STRICT Tables
+### 1. Use Proper Data Types
 
-Converting tables to STRICT mode would enforce type checking and prevent unexpected type coercion:
+DuckDB supports a rich set of data types suited for analytics:
 
 ```sql
 CREATE TABLE scenarios (
-  scenario_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  scenario_name TEXT UNIQUE NOT NULL,
-  gcm TEXT NOT NULL,
-  rcp TEXT NOT NULL,
-  ssp TEXT NOT NULL
-) STRICT;
+  scenario_id INTEGER PRIMARY KEY,
+  scenario_name VARCHAR UNIQUE NOT NULL,
+  gcm VARCHAR NOT NULL,
+  rcp VARCHAR NOT NULL,
+  ssp VARCHAR NOT NULL
+);
 ```
 
-### 2. Add Text Column Length Constraints
+### 2. Add Column Constraints
 
-Add CHECK constraints for TEXT fields to prevent malicious large data insertions:
+Add CHECK constraints for fields to enforce data quality:
 
 ```sql
 CREATE TABLE counties (
-  fips_code TEXT PRIMARY KEY CHECK(length(fips_code) = 5),
-  county_name TEXT NOT NULL CHECK(length(county_name) < 128)
-) STRICT;
+  fips_code VARCHAR PRIMARY KEY CHECK(LENGTH(fips_code) = 5),
+  county_name VARCHAR NOT NULL CHECK(LENGTH(county_name) < 128)
+);
 ```
 
 ### 3. Implement Boolean Fields Properly
 
-For any boolean fields that might be added in the future, use the recommended pattern:
+For any boolean fields, use the BOOLEAN type:
 
 ```sql
 CREATE TABLE example (
   id INTEGER PRIMARY KEY,
-  is_active INTEGER NOT NULL CHECK (is_active IN (0, 1))
-) STRICT;
+  is_active BOOLEAN NOT NULL
+);
 ```
 
 ### 4. Add Schema Version Management
@@ -363,47 +365,32 @@ Implement version tracking for schema changes:
 ```sql
 CREATE TABLE schema_info (
   version INTEGER PRIMARY KEY,
-  applied_at TEXT DEFAULT (datetime('now')),
-  description TEXT NOT NULL
-) STRICT;
+  applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  description VARCHAR NOT NULL
+);
 
 -- Initialize with current version
 INSERT INTO schema_info (version, description) VALUES (1, 'Initial schema');
 ```
 
-### 5. Additional Indexes for Common Queries
+### 5. Leverage DuckDB's Analytical Features
 
-Based on application usage patterns, additional indexes could improve performance:
-
-```sql
--- For queries filtering by land use types
-CREATE INDEX idx_from_land_use ON land_use_transitions (from_land_use);
-CREATE INDEX idx_to_land_use ON land_use_transitions (to_land_use);
-
--- For aggregation queries on acres
-CREATE INDEX idx_acres ON land_use_transitions (acres);
-
--- For RPA region queries
-CREATE INDEX idx_state_mapping_subregion ON rpa_state_mapping (subregion_id);
-CREATE INDEX idx_subregions_parent ON rpa_subregions (parent_region_id);
-```
-
-### 6. Add Database Comments
-
-Add comments to document table and column purposes directly in the schema:
+Take advantage of DuckDB's specialized features for analytics:
 
 ```sql
--- Add table comments
-PRAGMA table_info = 'Land use transitions represent changes between land types';
-
--- For SQLite versions that don't support comments directly in schema,
--- consider a documentation table:
-CREATE TABLE schema_documentation (
-  object_type TEXT NOT NULL,
-  object_name TEXT NOT NULL,
-  description TEXT NOT NULL,
-  PRIMARY KEY (object_type, object_name)
-) STRICT;
+-- Create a materialized view for common aggregations
+CREATE MATERIALIZED VIEW region_land_use_summary AS
+SELECT 
+    r.region_id,
+    r.region_name,
+    lt.from_land_use,
+    lt.to_land_use,
+    SUM(lt.acres) as total_acres
+FROM land_use_transitions lt
+JOIN counties c ON lt.fips_code = c.fips_code
+JOIN rpa_hierarchy rh ON c.fips_code = rh.region_id
+JOIN rpa_regions r ON rh.rpa_region_id = r.region_id
+GROUP BY r.region_id, r.region_name, lt.from_land_use, lt.to_land_use;
 ```
 
 ## Data Flow Diagram
@@ -411,7 +398,7 @@ CREATE TABLE schema_documentation (
 ```mermaid
 flowchart TD
     A[Raw RPA Data: JSON] -->|src/data_setup/converter.py| B[Processed Data: Parquet]
-    B -->|src/data_setup/db_loader.py| C[SQLite Database]
+    B -->|src/data_setup/db_loader.py| C[DuckDB Database]
     C -->|src/db/queries.py| D[Query Results]
     D -->|app.py| E[Streamlit UI]
     
@@ -428,7 +415,7 @@ flowchart TD
 
 ## Schema Version Control Strategy
 
-To effectively version control this SQLite schema:
+To effectively version control this DuckDB schema:
 
 1. **Schema as Code**: Maintain the complete schema definition in the `init.sql` file under version control
 
@@ -443,12 +430,12 @@ To effectively version control this SQLite schema:
 
 3. **Schema Dump Command**: Use the following command to dump the current schema for version control:
    ```bash
-   sqlite3 data/database/rpa_landuse.db ".schema --indent" > docs/current_schema.sql
+   duckdb data/database/rpa_landuse_duck.db ".schema" > docs/current_schema.sql
    ```
 
 4. **Schema Verification**: Add a verification step to ensure the schema matches what's expected:
    ```bash
-   sqlite3 :memory: < docs/current_schema.sql
+   duckdb :memory: < docs/current_schema.sql
    ```
 
 5. **Schema Documentation**: Automatically update this documentation when schema changes:
@@ -456,39 +443,40 @@ To effectively version control this SQLite schema:
    # Count records in each table
    echo "Table record counts:" > docs/schema_stats.md
    echo "-------------------" >> docs/schema_stats.md
-   sqlite3 data/database/rpa_landuse.db "SELECT 'scenarios: ' || COUNT(*) FROM scenarios; SELECT 'time_steps: ' || COUNT(*) FROM time_steps; SELECT 'counties: ' || COUNT(*) FROM counties; SELECT 'land_use_transitions: ' || COUNT(*) FROM land_use_transitions; SELECT 'rpa_regions: ' || COUNT(*) FROM rpa_regions; SELECT 'rpa_subregions: ' || COUNT(*) FROM rpa_subregions; SELECT 'rpa_state_mapping: ' || COUNT(*) FROM rpa_state_mapping;" >> docs/schema_stats.md
+   duckdb data/database/rpa_landuse_duck.db "SELECT 'scenarios: ' || COUNT(*) FROM scenarios; SELECT 'time_steps: ' || COUNT(*) FROM time_steps; SELECT 'counties: ' || COUNT(*) FROM counties; SELECT 'land_use_transitions: ' || COUNT(*) FROM land_use_transitions; SELECT 'rpa_regions: ' || COUNT(*) FROM rpa_regions; SELECT 'rpa_subregions: ' || COUNT(*) FROM rpa_subregions; SELECT 'rpa_state_mapping: ' || COUNT(*) FROM rpa_state_mapping;" >> docs/schema_stats.md
    ```
 
 ## Query Performance Considerations
 
-To optimize query performance, consider the following:
+To optimize query performance in DuckDB, consider the following:
 
-1. **Use Prepared Statements**: For repeatedly executed queries to take advantage of SQLite's query planning.
+1. **Use Prepared Statements**: For repeatedly executed queries to take advantage of DuckDB's query planning.
 
-2. **Limit Result Sets**: When querying large tables like `land_use_transitions`, always include LIMIT clauses to restrict the number of rows returned.
+2. **Enable Parallelism**: Set appropriate thread count with `PRAGMA threads=4` for parallel query execution.
 
-3. **Use EXPLAIN QUERY PLAN**: To understand how SQLite is executing queries and identify potential performance bottlenecks.
+3. **Use EXPLAIN**: To understand query execution plans and identify potential performance bottlenecks.
 
-4. **Consider Additional Indexes**: If certain query patterns emerge that are not covered by the existing index, consider adding additional indexes on:
-   - `from_land_use` and `to_land_use` columns if frequently filtering by these values
-   - `acres` column if performing range queries or aggregations on this column
-   - `subregion_id` in the `rpa_state_mapping` table if frequently joining on this column
+4. **Consider Materialized Views**: For frequently accessed aggregated data.
 
-5. **Transaction Management**: Wrap multiple related operations within transactions to improve performance.
+5. **Use COPY Instead of INSERT**: For bulk loading data as it's much faster.
+
+6. **Configure Memory Limits**: Adjust memory limits based on system capabilities with `PRAGMA memory_limit`.
 
 ## Data Type Considerations
 
-The schema uses the following SQLite data types:
+DuckDB supports a rich set of SQL data types:
 
-- **INTEGER**: For auto-incrementing primary keys and year values
-- **TEXT**: For string data like names, codes, and land use types
-- **REAL**: For floating-point values like acres
+- **INTEGER/BIGINT**: For whole number values
+- **VARCHAR/TEXT**: For string data
+- **DOUBLE/DECIMAL**: For floating-point values
+- **BOOLEAN**: For true/false values
+- **TIMESTAMP**: For date and time values
 
-While SQLite's strict typing is not enabled, the schema does enforce type consistency through application logic and foreign key constraints.
+DuckDB also supports nested types like STRUCT, LIST, and MAP which can be useful for complex data.
 
 ## Maintenance Recommendations
 
-1. **Regular Database Vacuuming**: Run VACUUM periodically to reclaim space and potentially improve performance.
+1. **Regular Checkpointing**: Run `CHECKPOINT` periodically to save in-memory changes.
 
 2. **Database Backups**: Implement regular database backups to prevent data loss.
 
@@ -498,11 +486,11 @@ While SQLite's strict typing is not enabled, the schema does enforce type consis
 CREATE TABLE schema_version (
     version INTEGER PRIMARY KEY,
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    description TEXT
+    description VARCHAR
 );
 ```
 
-4. **Query Monitoring**: Consider logging slow-running queries to identify optimization opportunities.
+4. **Query Optimization**: Use `PRAGMA explain_output='all'` to get detailed query plans for optimization.
 
 ## Usage Examples
 
@@ -539,7 +527,7 @@ ORDER BY ts.start_year;
 SELECT r.region_name, lt.from_land_use, lt.to_land_use, SUM(lt.acres) as total_acres
 FROM land_use_transitions lt
 JOIN counties c ON lt.fips_code = c.fips_code
-JOIN states s ON SUBSTR(c.fips_code, 1, 2) = s.state_fips
+JOIN states s ON SUBSTRING(c.fips_code, 1, 2) = s.state_fips
 JOIN rpa_state_mapping rsm ON s.state_fips = rsm.state_fips
 JOIN rpa_subregions sr ON rsm.subregion_id = sr.subregion_id
 JOIN rpa_regions r ON sr.parent_region_id = r.region_id

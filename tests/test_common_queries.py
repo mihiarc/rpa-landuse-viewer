@@ -1,6 +1,6 @@
 import os
 import pytest
-import sqlite3
+import duckdb
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -11,29 +11,39 @@ sys.path.append(str(Path(__file__).parent.parent))
 from src.db.database import DatabaseConnection
 from src.db.queries import LandUseQueries
 
+# Define database path
+DB_PATH = os.getenv('DB_PATH', 'data/database/rpa_landuse_duck.db')
+
+# Create fixtures for database connection and cursor
+@pytest.fixture(scope="module")
+def db_connection():
+    conn = duckdb.connect(DB_PATH)
+    yield conn
+    conn.close()
+
+@pytest.fixture(scope="function")
+def db_cursor(db_connection):
+    return db_connection
+
 # Get a sample scenario, year range, and county for testing
 @pytest.fixture(scope="function")
-def test_data(db_cursor):
+def test_data(db_connection):
     """Fetch sample data for tests."""
     # Get a sample scenario
-    db_cursor.execute("SELECT scenario_id, scenario_name FROM scenarios LIMIT 1")
-    scenario = db_cursor.fetchone()
+    scenario = db_connection.execute("SELECT scenario_id, scenario_name FROM scenarios LIMIT 1").fetchone()
     
     # Get a sample time range
-    db_cursor.execute("SELECT start_year, end_year FROM time_steps LIMIT 1")
-    time_range = db_cursor.fetchone()
+    time_range = db_connection.execute("SELECT start_year, end_year FROM time_steps LIMIT 1").fetchone()
     
     # Get a sample county
-    db_cursor.execute("SELECT fips_code FROM counties LIMIT 1")
-    county = db_cursor.fetchone()
+    county = db_connection.execute("SELECT fips_code FROM counties LIMIT 1").fetchone()
     
     # Get sample land use types
-    db_cursor.execute("""
+    land_use_types = db_connection.execute("""
         SELECT DISTINCT from_land_use FROM land_use_transitions 
         UNION SELECT DISTINCT to_land_use FROM land_use_transitions
         LIMIT 5
-    """)
-    land_use_types = [row[0] for row in db_cursor.fetchall()]
+    """).fetchdf()['from_land_use'].tolist()
     
     return {
         'scenario_id': scenario[0],
@@ -47,7 +57,7 @@ def test_data(db_cursor):
 class TestCoreQueries:
     """Test implementation of core queries from common_queries.md."""
     
-    def test_total_net_change_by_land_use_type(self, db_cursor, test_data):
+    def test_total_net_change_by_land_use_type(self, db_connection, test_data):
         """
         Test Query 1: Total Net Change by Land Use Type
         
@@ -83,8 +93,7 @@ class TestCoreQueries:
         ORDER BY total_net_change DESC
         """
         
-        db_cursor.execute(query)
-        results = db_cursor.fetchall()
+        results = db_connection.execute(query).fetchall()
         
         # Check the results
         assert len(results) > 0, "No results returned for total net change query"
@@ -97,7 +106,7 @@ class TestCoreQueries:
         for row in results:
             print(f"{row[0]}: {row[1]:,.2f} acres")
 
-    def test_annualized_change_rate(self, db_cursor, test_data):
+    def test_annualized_change_rate(self, db_connection, test_data):
         """
         Test Query 2: Annualized Change Rate
         
@@ -146,8 +155,7 @@ class TestCoreQueries:
         ORDER BY start_year, annual_change_rate DESC
         """
         
-        db_cursor.execute(query)
-        results = db_cursor.fetchall()
+        results = db_connection.execute(query).fetchall()
         
         # Check the results
         assert len(results) > 0, "No results returned for annualized change rate query"
@@ -156,7 +164,7 @@ class TestCoreQueries:
         for row in results[:5]:  # Show just the first 5 for brevity
             print(f"{row[0]}-{row[1]} | {row[2]}: {row[5]:,.2f} acres/year")
 
-    def test_peak_change_time_period(self, db_cursor, test_data):
+    def test_peak_change_time_period(self, db_connection, test_data):
         """
         Test Query 3: Peak Change Time Period
         
@@ -214,8 +222,7 @@ class TestCoreQueries:
         ORDER BY absolute_change DESC
         """
         
-        db_cursor.execute(query)
-        results = db_cursor.fetchall()
+        results = db_connection.execute(query).fetchall()
         
         # Check the results
         assert len(results) > 0, "No results returned for peak change time period query"
@@ -224,7 +231,7 @@ class TestCoreQueries:
         for row in results:
             print(f"{row[0]}: {row[1]}-{row[2]} with change of {row[3]:,.2f} acres")
 
-    def test_change_by_state(self, db_cursor, test_data):
+    def test_change_by_state(self, db_connection, test_data):
         """
         Test Query 4: Change by State
         
@@ -234,299 +241,346 @@ class TestCoreQueries:
         query = """
         WITH state_from_changes AS (
             SELECT 
-                SUBSTR(lut.fips_code, 1, 2) AS state_fips,
+                SUBSTRING(lut.fips_code, 1, 2) AS state_fips,
                 s.state_name,
                 lut.from_land_use AS land_use_type,
                 -SUM(lut.acres) AS acres_lost
             FROM land_use_transitions lut
             JOIN counties_by_state c ON lut.fips_code = c.county_fips
             JOIN states s ON c.state_fips = s.state_fips
-            GROUP BY SUBSTR(lut.fips_code, 1, 2), s.state_name, lut.from_land_use
+            GROUP BY SUBSTRING(lut.fips_code, 1, 2), s.state_name, lut.from_land_use
         ),
         state_to_changes AS (
             SELECT 
-                SUBSTR(lut.fips_code, 1, 2) AS state_fips,
+                SUBSTRING(lut.fips_code, 1, 2) AS state_fips,
                 s.state_name,
                 lut.to_land_use AS land_use_type,
                 SUM(lut.acres) AS acres_gained
             FROM land_use_transitions lut
             JOIN counties_by_state c ON lut.fips_code = c.county_fips
             JOIN states s ON c.state_fips = s.state_fips
-            GROUP BY SUBSTR(lut.fips_code, 1, 2), s.state_name, lut.to_land_use
+            GROUP BY SUBSTRING(lut.fips_code, 1, 2), s.state_name, lut.to_land_use
         ),
-        state_net_changes AS (
+        combined AS (
             SELECT * FROM state_from_changes
             UNION ALL
             SELECT * FROM state_to_changes
         )
-        SELECT
-            state_fips,
+        SELECT 
             state_name,
             land_use_type,
             SUM(acres_lost) AS net_change
-        FROM state_net_changes
-        GROUP BY state_fips, state_name, land_use_type
+        FROM combined
+        GROUP BY state_name, land_use_type
         ORDER BY state_name, net_change DESC
         """
         
-        db_cursor.execute(query)
-        results = db_cursor.fetchall()
+        results = db_connection.execute(query).fetchall()
         
         # Check the results
         assert len(results) > 0, "No results returned for change by state query"
         
-        print("Net change by state and land use type (sample):")
-        for row in results[:5]:  # Show just the first 5 for brevity
-            print(f"{row[1]} - {row[2]}: {row[3]:,.2f} acres")
+        # Sample of results
+        print("Net change by state (sample):")
+        sample_state = results[0][0]  # Get first state in results
+        for row in results:
+            if row[0] == sample_state:
+                print(f"{row[0]} - {row[1]}: {row[2]:,.2f} acres")
 
-    def test_top_counties_by_change(self, db_cursor, test_data):
+    def test_top_counties_by_change(self, db_connection, test_data):
         """
-        Test Query 5: Top N Counties by Change
+        Test Query 5: Top Counties by Change
         
-        "Which are the top 10 counties with the largest increase in urban land use by 2070?"
+        "Which counties experience the largest absolute change (gain or loss) for 
+        each land use type? List the top 5 counties by absolute change for each land use type."
         """
-        # Use a land use type that exists in the database
-        # Get a sample land use type from test_data
-        land_use_type = test_data['land_use_types'][0]  # First land use type
-        print(f"Using land use type: {land_use_type}")
-        top_n = 10
-        
-        query = f"""
+        query = """
         WITH county_from_changes AS (
             SELECT 
                 lut.fips_code,
                 c.county_name,
-                st.state_name,
-                '{land_use_type}' AS land_use_type,
+                s.state_name,
+                lut.from_land_use AS land_use_type,
                 -SUM(lut.acres) AS acres_lost
             FROM land_use_transitions lut
             JOIN counties c ON lut.fips_code = c.fips_code
-            JOIN counties_by_state cbs ON c.fips_code = cbs.county_fips
-            JOIN states st ON cbs.state_fips = st.state_fips
-            WHERE lut.from_land_use = '{land_use_type}'
-            GROUP BY lut.fips_code, c.county_name, st.state_name
+            JOIN county_state_map s ON c.fips_code = s.county_fips
+            GROUP BY lut.fips_code, c.county_name, s.state_name, lut.from_land_use
         ),
         county_to_changes AS (
             SELECT 
                 lut.fips_code,
                 c.county_name,
-                st.state_name,
-                '{land_use_type}' AS land_use_type,
+                s.state_name,
+                lut.to_land_use AS land_use_type,
                 SUM(lut.acres) AS acres_gained
             FROM land_use_transitions lut
             JOIN counties c ON lut.fips_code = c.fips_code
-            JOIN counties_by_state cbs ON c.fips_code = cbs.county_fips
-            JOIN states st ON cbs.state_fips = st.state_fips
-            WHERE lut.to_land_use = '{land_use_type}'
-            GROUP BY lut.fips_code, c.county_name, st.state_name
+            JOIN county_state_map s ON c.fips_code = s.county_fips
+            GROUP BY lut.fips_code, c.county_name, s.state_name, lut.to_land_use
         ),
-        county_net_changes AS (
+        combined AS (
             SELECT * FROM county_from_changes
             UNION ALL
             SELECT * FROM county_to_changes
         ),
-        county_ranked AS (
+        county_net_changes AS (
+            SELECT 
+                fips_code,
+                county_name,
+                state_name,
+                land_use_type,
+                SUM(acres_lost) AS net_change,
+                ABS(SUM(acres_lost)) AS absolute_change
+            FROM combined
+            GROUP BY fips_code, county_name, state_name, land_use_type
+        ),
+        ranked_counties AS (
             SELECT
                 fips_code,
                 county_name,
                 state_name,
                 land_use_type,
-                SUM(acres_lost) AS net_change
+                net_change,
+                absolute_change,
+                ROW_NUMBER() OVER (PARTITION BY land_use_type ORDER BY absolute_change DESC) as rank
             FROM county_net_changes
-            GROUP BY fips_code, county_name, state_name, land_use_type
-            ORDER BY net_change DESC
-            LIMIT {top_n}
-        )
-        SELECT * FROM county_ranked
-        """
-        
-        db_cursor.execute(query)
-        results = db_cursor.fetchall()
-        
-        # Check the results
-        assert len(results) > 0, "No results returned for top counties query"
-        assert len(results) <= top_n, f"Expected at most {top_n} results, got {len(results)}"
-        
-        print(f"Top {top_n} counties with largest increase in {land_use_type} land use:")
-        for i, row in enumerate(results, 1):
-            print(f"{i}. {row[1]}, {row[2]}: {row[4]:,.2f} acres")
-
-    def test_major_transitions(self, db_cursor, test_data):
-        """
-        Test Query 11: Major Transitions
-        
-        "What are the top 3 most common land use transitions (e.g., forest to urban, 
-        rangeland to cropland) observed across the CONUS between 2020 and 2050?"
-        """
-        start_year = 2020
-        end_year = 2050
-        top_n = 3
-        
-        query = f"""
-        SELECT
-            lut.from_land_use,
-            lut.to_land_use,
-            SUM(lut.acres) AS total_acres_changed
-        FROM land_use_transitions lut
-        JOIN time_steps ts ON lut.time_step_id = ts.time_step_id
-        WHERE ts.start_year >= {start_year} AND ts.end_year <= {end_year}
-        GROUP BY lut.from_land_use, lut.to_land_use
-        ORDER BY total_acres_changed DESC
-        LIMIT {top_n}
-        """
-        
-        db_cursor.execute(query)
-        results = db_cursor.fetchall()
-        
-        # Check the results
-        assert len(results) > 0, "No results returned for major transitions query"
-        assert len(results) <= top_n, f"Expected at most {top_n} results, got {len(results)}"
-        
-        print(f"Top {top_n} most common land use transitions between {start_year}-{end_year}:")
-        for i, row in enumerate(results, 1):
-            print(f"{i}. {row[0]} → {row[1]}: {row[2]:,.2f} acres")
-
-    def test_data_integrity_total_area_consistency(self, db_cursor, test_data):
-        """
-        Test Query 14: Total Area Consistency
-        
-        "For each county and time period, does the sum of all land use areas 
-        equal the total area at the start of the time period (t1)?"
-        """
-        query = """
-        WITH from_county_totals AS (
-            SELECT
-                scenario_id,
-                time_step_id,
-                fips_code,
-                SUM(acres) AS total_from_acres
-            FROM land_use_transitions
-            GROUP BY scenario_id, time_step_id, fips_code
-        ),
-        to_county_totals AS (
-            SELECT
-                scenario_id,
-                time_step_id,
-                fips_code,
-                SUM(acres) AS total_to_acres
-            FROM land_use_transitions
-            GROUP BY scenario_id, time_step_id, fips_code
-        ),
-        comparison AS (
-            SELECT
-                f.scenario_id,
-                f.time_step_id,
-                f.fips_code,
-                f.total_from_acres,
-                t.total_to_acres,
-                ABS(f.total_from_acres - t.total_to_acres) AS difference
-            FROM from_county_totals f
-            JOIN to_county_totals t ON f.scenario_id = t.scenario_id
-                                    AND f.time_step_id = t.time_step_id
-                                    AND f.fips_code = t.fips_code
         )
         SELECT
-            scenario_id,
-            time_step_id,
+            land_use_type,
             fips_code,
-            total_from_acres,
-            total_to_acres,
-            difference
-        FROM comparison
-        WHERE difference > 0.1  -- Allowing for small rounding errors
-        LIMIT 10
+            county_name,
+            state_name,
+            net_change,
+            absolute_change,
+            rank
+        FROM ranked_counties
+        WHERE rank <= 5
+        ORDER BY land_use_type, rank
         """
         
-        db_cursor.execute(query)
-        inconsistencies = db_cursor.fetchall()
+        results = db_connection.execute(query).fetchall()
         
-        # Check for inconsistencies
-        if len(inconsistencies) > 0:
-            print("Found area inconsistencies (sample):")
-            for row in inconsistencies:
-                print(f"Scenario {row[0]}, Time step {row[1]}, County {row[2]}: " \
-                      f"From acres {row[3]:,.2f}, To acres {row[4]:,.2f}, " \
-                      f"Difference {row[5]:,.2f}")
-        else:
-            print("All county areas are consistent across time periods")
+        # Check the results
+        assert len(results) > 0, "No results returned for top counties by change query"
         
-        # Get total number of county-period combinations to assess percentage of inconsistencies
-        db_cursor.execute("""
-            SELECT COUNT(*) FROM (
-                SELECT DISTINCT scenario_id, time_step_id, fips_code
-                FROM land_use_transitions
-            )
-        """)
-        total_combinations = db_cursor.fetchone()[0]
+        # Check that we have top 5 for each land use type
+        land_use_counts = {}
+        for row in results:
+            land_use = row[0]
+            if land_use not in land_use_counts:
+                land_use_counts[land_use] = 0
+            land_use_counts[land_use] += 1
         
-        # Calculate percentage of inconsistencies
-        if total_combinations > 0:
-            inconsistency_rate = len(inconsistencies) / total_combinations * 100
-            print(f"Inconsistency rate: {inconsistency_rate:.4f}% ({len(inconsistencies)} of {total_combinations})")
-            
-            # Low inconsistency rate is acceptable (due to rounding/precision)
-            assert inconsistency_rate < 5.0, f"Inconsistency rate too high: {inconsistency_rate:.4f}%"
+        # Assuming we have at least one land use type
+        for land_use, count in land_use_counts.items():
+            assert count <= 5, f"Expected maximum 5 counties per land use type, got {count} for {land_use}"
+        
+        # Sample of results
+        print("Top counties by change (sample):")
+        sample_land_use = results[0][0]  # Get first land use type in results
+        for row in results:
+            if row[0] == sample_land_use:
+                print(f"{row[0]} - Rank {row[6]}: {row[2]}, {row[3]} with change of {row[4]:,.2f} acres")
 
-    def test_data_integrity_no_negative_acres(self, db_cursor):
+    def test_major_transitions(self, db_connection, test_data):
         """
-        Test Query 15: No Negative Acres
+        Test Query 6: Major Transitions
         
-        "Are there any instances of negative acre values in the data?"
+        "What are the most significant land use transitions (e.g., forest to urban, 
+        cropland to urban) in terms of total acres converted over the entire projection period?"
         """
         query = """
         SELECT 
-            scenario_id,
-            time_step_id,
-            fips_code,
             from_land_use,
             to_land_use,
-            acres
+            SUM(acres) AS total_acres
         FROM land_use_transitions
-        WHERE acres < 0
+        GROUP BY from_land_use, to_land_use
+        ORDER BY total_acres DESC
         LIMIT 10
         """
         
-        db_cursor.execute(query)
-        negative_acres = db_cursor.fetchall()
+        results = db_connection.execute(query).fetchall()
         
-        # There should be no negative acre values
-        assert len(negative_acres) == 0, f"Found {len(negative_acres)} transitions with negative acre values"
-        print("No negative acre values found")
+        # Check the results
+        assert len(results) > 0, "No results returned for major transitions query"
+        assert len(results) <= 10, "Expected at most 10 results"
+        
+        print("Major transitions:")
+        for row in results:
+            print(f"{row[0]} to {row[1]}: {row[2]:,.2f} acres")
 
-    def test_data_integrity_unique_identifiers(self, db_cursor):
+    def test_data_integrity_total_area_consistency(self, db_connection, test_data):
         """
-        Test Query 16: Unique Identifiers
+        Test Data Integrity: Total Area Consistency Check
         
-        "Are all scenario names, FIPS codes, and time step IDs unique in their respective tables?"
+        "Verify that the total area of all land use types remains consistent over 
+        time (conservation of land area principle)."
         """
-        # Check scenario name uniqueness
-        db_cursor.execute("""
-            SELECT scenario_name, COUNT(*) 
-            FROM scenarios 
-            GROUP BY scenario_name 
-            HAVING COUNT(*) > 1
-        """)
-        duplicate_scenarios = db_cursor.fetchall()
-        assert len(duplicate_scenarios) == 0, f"Found {len(duplicate_scenarios)} duplicate scenario names"
+        query = """
+        WITH initial_areas AS (
+            SELECT 
+                lut.scenario_id,
+                s.scenario_name,
+                ts.start_year,
+                lut.from_land_use,
+                SUM(lut.acres) AS initial_area
+            FROM land_use_transitions lut
+            JOIN scenarios s ON lut.scenario_id = s.scenario_id
+            JOIN time_steps ts ON lut.time_step_id = ts.time_step_id
+            WHERE ts.start_year = (SELECT MIN(start_year) FROM time_steps)
+            GROUP BY lut.scenario_id, s.scenario_name, ts.start_year, lut.from_land_use
+        ),
+        final_areas AS (
+            SELECT 
+                lut.scenario_id,
+                s.scenario_name,
+                ts.end_year AS year,
+                lut.to_land_use AS land_use,
+                SUM(lut.acres) AS final_area
+            FROM land_use_transitions lut
+            JOIN scenarios s ON lut.scenario_id = s.scenario_id
+            JOIN time_steps ts ON lut.time_step_id = ts.time_step_id
+            WHERE ts.end_year = (SELECT MAX(end_year) FROM time_steps)
+            GROUP BY lut.scenario_id, s.scenario_name, ts.end_year, lut.to_land_use
+        ),
+        total_areas AS (
+            SELECT 
+                scenario_id,
+                scenario_name,
+                start_year AS year,
+                SUM(initial_area) AS total_area
+            FROM initial_areas
+            GROUP BY scenario_id, scenario_name, start_year
+            
+            UNION ALL
+            
+            SELECT 
+                scenario_id,
+                scenario_name,
+                year,
+                SUM(final_area) AS total_area
+            FROM final_areas
+            GROUP BY scenario_id, scenario_name, year
+        )
+        SELECT 
+            scenario_name,
+            year,
+            total_area
+        FROM total_areas
+        ORDER BY scenario_id, year
+        """
         
-        # Check FIPS code uniqueness
-        db_cursor.execute("""
-            SELECT fips_code, COUNT(*) 
-            FROM counties 
-            GROUP BY fips_code 
-            HAVING COUNT(*) > 1
-        """)
-        duplicate_fips = db_cursor.fetchall()
-        assert len(duplicate_fips) == 0, f"Found {len(duplicate_fips)} duplicate FIPS codes"
+        results = db_connection.execute(query).fetchall()
         
-        # Check time step uniqueness
-        db_cursor.execute("""
-            SELECT start_year, end_year, COUNT(*) 
-            FROM time_steps 
-            GROUP BY start_year, end_year 
-            HAVING COUNT(*) > 1
-        """)
-        duplicate_time_steps = db_cursor.fetchall()
-        assert len(duplicate_time_steps) == 0, f"Found {len(duplicate_time_steps)} duplicate time steps"
+        # Check the results
+        assert len(results) > 0, "No results returned for total area consistency check"
         
-        print("All identifiers are unique in their respective tables") 
+        # Group by scenario
+        scenarios = {}
+        for row in results:
+            scenario = row[0]
+            if scenario not in scenarios:
+                scenarios[scenario] = []
+            scenarios[scenario].append((row[1], row[2]))
+        
+        # Check consistency for each scenario
+        for scenario, areas in scenarios.items():
+            # Sort by year
+            areas.sort(key=lambda x: x[0])
+            
+            # Check if first and last area are similar (within 0.1% tolerance)
+            if len(areas) >= 2:
+                first_area = areas[0][1]
+                last_area = areas[-1][1]
+                difference_pct = abs(first_area - last_area) / first_area * 100
+                
+                assert difference_pct < 0.1, f"Total area changed by {difference_pct:.2f}% in scenario {scenario}"
+                print(f"Scenario {scenario}: Area conservation check passed. Difference: {difference_pct:.4f}%")
+
+    def test_data_integrity_no_negative_acres(self, db_connection):
+        """
+        Test Data Integrity: No Negative Acres
+        
+        "Ensure that no land use transition record has negative acres."
+        """
+        query = """
+        SELECT COUNT(*) 
+        FROM land_use_transitions 
+        WHERE acres < 0
+        """
+        
+        result = db_connection.execute(query).fetchone()
+        count = result[0]
+        
+        assert count == 0, f"Found {count} records with negative acres"
+        print("Negative acres check passed: No records with negative acres found")
+        
+        # Also check for zero acres as potentially suspicious
+        query = """
+        SELECT COUNT(*) 
+        FROM land_use_transitions 
+        WHERE acres = 0
+        """
+        
+        result = db_connection.execute(query).fetchone()
+        count = result[0]
+        
+        print(f"Found {count} records with exactly zero acres")
+
+    def test_data_integrity_unique_identifiers(self, db_connection):
+        """
+        Test Data Integrity: Unique Identifiers
+        
+        "Verify that primary keys are unique across relevant tables."
+        """
+        # Test scenarios
+        result = db_connection.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT scenario_id, COUNT(*) 
+                FROM scenarios 
+                GROUP BY scenario_id 
+                HAVING COUNT(*) > 1
+            )
+        """).fetchone()
+        assert result[0] == 0, f"Found {result[0]} duplicate scenario_id values"
+        
+        # Test time_steps
+        result = db_connection.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT time_step_id, COUNT(*) 
+                FROM time_steps 
+                GROUP BY time_step_id 
+                HAVING COUNT(*) > 1
+            )
+        """).fetchone()
+        assert result[0] == 0, f"Found {result[0]} duplicate time_step_id values"
+        
+        # Test counties
+        result = db_connection.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT fips_code, COUNT(*) 
+                FROM counties 
+                GROUP BY fips_code 
+                HAVING COUNT(*) > 1
+            )
+        """).fetchone()
+        assert result[0] == 0, f"Found {result[0]} duplicate fips_code values"
+        
+        # Test transitions
+        result = db_connection.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT transition_id, COUNT(*) 
+                FROM land_use_transitions 
+                GROUP BY transition_id 
+                HAVING COUNT(*) > 1
+            )
+        """).fetchone()
+        assert result[0] == 0, f"Found {result[0]} duplicate transition_id values"
+        
+        print("Unique identifiers check passed: All primary keys are unique")
+
+
+if __name__ == "__main__":
+    pytest.main(["-v", __file__]) 

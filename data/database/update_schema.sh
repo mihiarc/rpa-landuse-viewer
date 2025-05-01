@@ -2,40 +2,42 @@
 
 # Script to update the database schema with state grouping capabilities
 
-# Get the directory where this script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-DB_PATH="$SCRIPT_DIR/rpa_landuse.db"
+# Exit on error
+set -e
 
-# Check if database exists
-if [ ! -f "$DB_PATH" ]; then
-    echo "Error: Database file not found at $DB_PATH"
-    exit 1
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Define database path
+# Check if DB_PATH environment variable is set
+if [ -z "$DB_PATH" ]; then
+    DB_PATH="$SCRIPT_DIR/rpa_landuse_duck.db"
 fi
 
-echo "Updating schema for state groupings..."
+echo "Using database at: $DB_PATH"
 
-# Add state table and views
-echo "Adding state table and views..."
-sqlite3 "$DB_PATH" < "$SCRIPT_DIR/add_state_groups.sql"
+# Add state groupings
+echo "Adding state groupings to database..."
+duckdb "$DB_PATH" < "$SCRIPT_DIR/add_state_groups.sql"
 
-# Populate states table with data
+# Populate states table
 echo "Populating states table..."
-sqlite3 "$DB_PATH" < "$SCRIPT_DIR/populate_states.sql"
+duckdb "$DB_PATH" < "$SCRIPT_DIR/populate_states.sql"
 
-# Verify the changes
-echo "Verifying changes..."
-sqlite3 "$DB_PATH" <<EOF
-.mode column
-.headers on
--- Check if states table was created and populated
-SELECT COUNT(*) AS state_count FROM states;
-
--- Check if views were created
-SELECT name FROM sqlite_master WHERE type='view' AND 
-    name IN ('county_state_map', 'state_land_use_transitions', 'region_hierarchy', 'counties_by_state', 'state_land_use_summary');
-
--- Check if index was created
-SELECT name FROM sqlite_master WHERE type='index' AND name='idx_counties_state_fips';
+# Verify the views were created
+echo "Verifying created views..."
+duckdb "$DB_PATH" <<EOF
+SELECT table_name 
+FROM information_schema.tables 
+WHERE table_schema = 'main' AND table_name LIKE '%state%';
 EOF
 
-echo "Schema update complete." 
+# Verify the indexes were created
+echo "Verifying indexes..."
+duckdb "$DB_PATH" <<EOF
+SELECT index_name 
+FROM information_schema.indexes 
+WHERE index_name = 'idx_counties_state_fips';
+EOF
+
+echo "Schema update completed successfully!" 

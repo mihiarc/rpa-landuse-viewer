@@ -1,0 +1,71 @@
+RPA_Assessment_Regions:
+  North_Region:
+    Northeast:
+      - Connecticut
+      - Maine
+      - Massachusetts
+      - New Hampshire
+      - New York
+      - Rhode Island
+      - Vermont
+    Mid_Atlantic:
+      - Delaware
+      - Maryland
+      - New Jersey
+      - Pennsylvania
+      - West Virginia
+    Lake_States:
+      - Michigan
+      - Minnesota
+      - Wisconsin
+    Central_States:
+      - Illinois
+      - Indiana
+      - Iowa
+      - Missouri
+      - Ohio
+
+  South_Region:
+    Southeast:
+      - Florida
+      - Georgia
+      - North Carolina
+      - South Carolina
+      - Virginia
+    South_Central:
+      - Alabama
+      - Arkansas
+      - Kentucky
+      - Louisiana
+      - Mississippi
+      - Tennessee
+    Southern_Plains:
+      - Oklahoma
+      - Texas
+
+  Rocky_Mountain_Region:
+    Northern_Plains:
+      - Kansas
+      - Nebraska
+      - North Dakota
+      - South Dakota
+    Rocky_Mountain:
+      - Colorado
+      - Idaho
+      - Montana
+      - Wyoming
+    Southwest:
+      - Arizona
+      - Nevada
+      - New Mexico
+      - Utah
+
+  Pacific_Coast_Region:
+    Pacific_Northwest:
+      - Oregon
+      - Washington
+    Pacific_Southwest:
+      - California
+      - Hawaii
+    Alaska:
+      - Alaska
