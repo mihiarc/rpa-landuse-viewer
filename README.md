@@ -21,6 +21,10 @@ The dataset includes 20 unique scenarios combining:
   - rcp85_ssp3: High emissions forcing, low growth
   - rcp85_ssp5: High emissions forcing, high growth
 
+## Data Status
+
+**IMPORTANT**: This dataset is static and will not be updated. It represents a one-time collection of land use projections from the RPA 2020 Assessment. The database and visualization tools in this repository are designed to work with this fixed dataset, and there is no need for continuous integration or deployment for data updates. Once processed and loaded, the database will contain the complete set of projections through 2070.
+
 ### Time Periods
 - Calibration period: 2012-2020
 - Projection periods: 2020-2070 in 10-year intervals
