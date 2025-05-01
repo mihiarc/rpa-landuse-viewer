@@ -214,27 +214,43 @@ def create_transition_matrix(df):
         fill_value=0
     )
     
-    # Create custom text for cells - blank for diagonal elements
-    text_matrix = matrix.copy()
-    for land_type in text_matrix.index:
-        if land_type in text_matrix.columns:
-            text_matrix.loc[land_type, land_type] = ""
-    
     # Create a heatmap
     fig = px.imshow(
         matrix,
-        text_auto=False,  # Don't auto-generate text
-        custom_data=text_matrix.values,  # Use our custom text matrix
+        text_auto='.2s',  # Show values with SI prefix
         color_continuous_scale='Viridis',
         aspect="equal",
         labels=dict(x="To Land Use", y="From Land Use", color="Acres"),
         title="Land Use Transition Matrix (Acres)"
     )
     
-    # Add custom text to the heatmap
+    # Create custom text array with empty cells for diagonal
+    text_array = []
+    for i, row_idx in enumerate(matrix.index):
+        text_row = []
+        for j, col_idx in enumerate(matrix.columns):
+            # If diagonal element (same from/to land use), show empty text
+            if row_idx == col_idx:
+                text_row.append("")
+            else:
+                # Format the value with SI prefix
+                val = matrix.iloc[i, j]
+                if val == 0:
+                    text_row.append("")
+                elif val >= 1e9:
+                    text_row.append(f"{val/1e9:.1f}G")
+                elif val >= 1e6:
+                    text_row.append(f"{val/1e6:.1f}M")
+                elif val >= 1e3:
+                    text_row.append(f"{val/1e3:.1f}k")
+                else:
+                    text_row.append(f"{val:.1f}")
+        text_array.append(text_row)
+    
+    # Update traces to use custom text
     fig.update_traces(
-        texttemplate="%{customdata}",
-        textfont={"size": 12},
+        text=text_array,
+        texttemplate="%{text}",
         hovertemplate="From: %{y}<br>To: %{x}<br>Acres: %{z:,.2f}<extra></extra>"
     )
     
