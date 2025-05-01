@@ -74,8 +74,11 @@ def get_land_use_types():
     conn = DatabaseConnection.get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT DISTINCT land_use_type 
-        FROM land_use_projections
+        SELECT DISTINCT from_land_use as land_use_type 
+        FROM land_use_transitions
+        UNION
+        SELECT DISTINCT to_land_use as land_use_type
+        FROM land_use_transitions
         ORDER BY land_use_type
     """)
     land_use_types = [row[0] for row in cursor.fetchall()]
