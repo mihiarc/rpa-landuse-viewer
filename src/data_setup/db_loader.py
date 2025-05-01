@@ -10,6 +10,7 @@ from tqdm import tqdm
 import os
 import sys
 import duckdb
+import argparse
 
 # Configure logging
 logging.basicConfig(
@@ -106,6 +107,363 @@ def initialize_database():
     finally:
         conn.close()
 
+# The following functions are for creating and managing views
+def check_prerequisites(conn):
+    """Check if all prerequisite tables exist and have data."""
+    prerequisites = {
+        "land_use_transitions": "Contains the core transition data",
+        "scenarios": "Contains scenario information",
+        "time_steps": "Contains time step information",
+        "counties": "Contains county information",
+        "states": "Contains state information",
+        "rpa_regions": "Contains RPA region information",
+        "rpa_subregions": "Contains RPA subregion information",
+        "rpa_state_mapping": "Maps states to RPA subregions"
+    }
+    
+    missing_tables = []
+    empty_tables = []
+    
+    for table, description in prerequisites.items():
+        try:
+            # Check if table exists
+            count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            logger.info(f"Table {table} exists with {count} rows")
+            
+            if count == 0:
+                empty_tables.append((table, description))
+        except Exception as e:
+            logger.error(f"Table {table} does not exist: {e}")
+            missing_tables.append((table, description))
+    
+    return missing_tables, empty_tables
+
+def create_states_table_if_needed(conn):
+    """Create and populate the states table if it doesn't exist."""
+    try:
+        # Check if table exists and has data
+        count = conn.execute("SELECT COUNT(*) FROM states").fetchone()[0]
+        if count > 0:
+            logger.info(f"States table already exists with {count} rows")
+            return True
+    except:
+        # Table doesn't exist, create it
+        logger.info("Creating states table...")
+        
+        # Create the table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS states (
+                state_fips VARCHAR PRIMARY KEY,
+                state_name VARCHAR,
+                state_abbr VARCHAR
+            )
+        """)
+        
+        # Load state mapping data
+        state_fips = {
+            'Alabama': '01', 'Alaska': '02', 'Arizona': '04', 'Arkansas': '05', 'California': '06',
+            'Colorado': '08', 'Connecticut': '09', 'Delaware': '10', 'Florida': '12', 'Georgia': '13',
+            'Hawaii': '15', 'Idaho': '16', 'Illinois': '17', 'Indiana': '18', 'Iowa': '19',
+            'Kansas': '20', 'Kentucky': '21', 'Louisiana': '22', 'Maine': '23', 'Maryland': '24',
+            'Massachusetts': '25', 'Michigan': '26', 'Minnesota': '27', 'Mississippi': '28', 'Missouri': '29',
+            'Montana': '30', 'Nebraska': '31', 'Nevada': '32', 'New Hampshire': '33', 'New Jersey': '34',
+            'New Mexico': '35', 'New York': '36', 'North Carolina': '37', 'North Dakota': '38', 'Ohio': '39',
+            'Oklahoma': '40', 'Oregon': '41', 'Pennsylvania': '42', 'Rhode Island': '44', 'South Carolina': '45',
+            'South Dakota': '46', 'Tennessee': '47', 'Texas': '48', 'Utah': '49', 'Vermont': '50',
+            'Virginia': '51', 'Washington': '53', 'West Virginia': '54', 'Wisconsin': '55', 'Wyoming': '56'
+        }
+        
+        state_abbrs = {
+            'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR', 'California': 'CA',
+            'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE', 'Florida': 'FL', 'Georgia': 'GA',
+            'Hawaii': 'HI', 'Idaho': 'ID', 'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA',
+            'Kansas': 'KS', 'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+            'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS', 'Missouri': 'MO',
+            'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV', 'New Hampshire': 'NH', 'New Jersey': 'NJ',
+            'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH',
+            'Oklahoma': 'OK', 'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+            'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT', 'Vermont': 'VT',
+            'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV', 'Wisconsin': 'WI', 'Wyoming': 'WY'
+        }
+        
+        # Insert all states
+        for state_name, fips in state_fips.items():
+            abbr = state_abbrs.get(state_name, '')
+            conn.execute(
+                "INSERT INTO states (state_fips, state_name, state_abbr) VALUES (?, ?, ?)",
+                (fips, state_name, abbr)
+            )
+        
+        conn.commit()
+        logger.info(f"Inserted {len(state_fips)} states into the database")
+    
+    return True
+
+def create_county_region_map_view(conn):
+    """Create a view that maps counties to regions and subregions."""
+    try:
+        conn.execute("""
+        CREATE OR REPLACE VIEW county_region_map AS
+        SELECT 
+            c.fips_code,
+            c.county_name,
+            s.state_fips,
+            s.state_name,
+            s.state_abbr,
+            rs.subregion_id,
+            rs.subregion_name,
+            r.region_id,
+            r.region_name
+        FROM 
+            counties c
+        JOIN 
+            states s ON SUBSTR(c.fips_code, 1, 2) = s.state_fips
+        JOIN 
+            rpa_state_mapping rsm ON s.state_fips = rsm.state_fips
+        JOIN 
+            rpa_subregions rs ON rsm.subregion_id = rs.subregion_id
+        JOIN 
+            rpa_regions r ON rs.parent_region_id = r.region_id
+        """)
+        logger.info("Created county_region_map view")
+        return True
+    except Exception as e:
+        logger.error(f"Error creating county_region_map view: {e}")
+        return False
+
+def create_state_region_map_view(conn):
+    """Create a view that maps states to regions and subregions."""
+    try:
+        conn.execute("""
+        CREATE OR REPLACE VIEW state_region_map AS
+        SELECT 
+            s.state_fips,
+            s.state_name,
+            s.state_abbr,
+            rs.subregion_id,
+            rs.subregion_name,
+            r.region_id,
+            r.region_name
+        FROM 
+            states s
+        JOIN 
+            rpa_state_mapping rsm ON s.state_fips = rsm.state_fips
+        JOIN 
+            rpa_subregions rs ON rsm.subregion_id = rs.subregion_id
+        JOIN 
+            rpa_regions r ON rs.parent_region_id = r.region_id
+        """)
+        logger.info("Created state_region_map view")
+        return True
+    except Exception as e:
+        logger.error(f"Error creating state_region_map view: {e}")
+        return False
+
+def create_region_land_use_view(conn):
+    """Create a view for land use by region."""
+    try:
+        conn.execute("""
+        CREATE OR REPLACE VIEW rpa_region_land_use AS
+        SELECT 
+            lut.scenario_id,
+            s.scenario_name,
+            ts.start_year,
+            ts.end_year,
+            crm.region_id AS rpa_region_id,
+            crm.region_name AS rpa_region_name,
+            lut.from_land_use,
+            lut.to_land_use,
+            SUM(lut.acres) AS acres
+        FROM 
+            land_use_transitions lut
+        JOIN 
+            scenarios s ON lut.scenario_id = s.scenario_id
+        JOIN 
+            time_steps ts ON lut.time_step_id = ts.time_step_id
+        JOIN 
+            county_region_map crm ON lut.fips_code = crm.fips_code
+        GROUP BY 
+            lut.scenario_id, s.scenario_name, ts.start_year, ts.end_year,
+            crm.region_id, crm.region_name, lut.from_land_use, lut.to_land_use
+        """)
+        logger.info("Created rpa_region_land_use view")
+        return True
+    except Exception as e:
+        logger.error(f"Error creating rpa_region_land_use view: {e}")
+        return False
+
+def create_subregion_land_use_view(conn):
+    """Create a view for land use by subregion."""
+    try:
+        conn.execute("""
+        CREATE OR REPLACE VIEW rpa_subregion_land_use AS
+        SELECT 
+            lut.scenario_id,
+            s.scenario_name,
+            ts.start_year,
+            ts.end_year,
+            crm.subregion_id,
+            crm.subregion_name,
+            crm.region_id AS parent_region_id,
+            crm.region_name AS parent_region_name,
+            lut.from_land_use,
+            lut.to_land_use,
+            SUM(lut.acres) AS acres
+        FROM 
+            land_use_transitions lut
+        JOIN 
+            scenarios s ON lut.scenario_id = s.scenario_id
+        JOIN 
+            time_steps ts ON lut.time_step_id = ts.time_step_id
+        JOIN 
+            county_region_map crm ON lut.fips_code = crm.fips_code
+        GROUP BY 
+            lut.scenario_id, s.scenario_name, ts.start_year, ts.end_year,
+            crm.subregion_id, crm.subregion_name, crm.region_id, crm.region_name,
+            lut.from_land_use, lut.to_land_use
+        """)
+        logger.info("Created rpa_subregion_land_use view")
+        return True
+    except Exception as e:
+        logger.error(f"Error creating rpa_subregion_land_use view: {e}")
+        return False
+
+def create_state_land_use_view(conn):
+    """Create a view for land use by state."""
+    try:
+        conn.execute("""
+        CREATE OR REPLACE VIEW rpa_state_land_use AS
+        SELECT 
+            lut.scenario_id,
+            s.scenario_name,
+            ts.start_year,
+            ts.end_year,
+            st.state_fips,
+            st.state_name,
+            st.state_abbr,
+            crm.subregion_id,
+            crm.subregion_name,
+            crm.region_id,
+            crm.region_name,
+            lut.from_land_use,
+            lut.to_land_use,
+            SUM(lut.acres) AS acres
+        FROM 
+            land_use_transitions lut
+        JOIN 
+            scenarios s ON lut.scenario_id = s.scenario_id
+        JOIN 
+            time_steps ts ON lut.time_step_id = ts.time_step_id
+        JOIN 
+            counties c ON lut.fips_code = c.fips_code
+        JOIN 
+            county_region_map crm ON c.fips_code = crm.fips_code
+        JOIN
+            states st ON crm.state_fips = st.state_fips
+        GROUP BY 
+            lut.scenario_id, s.scenario_name, ts.start_year, ts.end_year,
+            st.state_fips, st.state_name, st.state_abbr,
+            crm.subregion_id, crm.subregion_name, crm.region_id, crm.region_name,
+            lut.from_land_use, lut.to_land_use
+        """)
+        logger.info("Created rpa_state_land_use view")
+        return True
+    except Exception as e:
+        logger.error(f"Error creating rpa_state_land_use view: {e}")
+        return False
+
+def verify_views(conn):
+    """Verify that all views were created properly."""
+    views_to_check = [
+        "county_region_map",
+        "state_region_map",
+        "rpa_region_land_use",
+        "rpa_subregion_land_use",
+        "rpa_state_land_use"
+    ]
+    
+    success = True
+    for view in views_to_check:
+        try:
+            # Simple query to check if view exists and works
+            result = conn.execute(f"SELECT COUNT(*) FROM {view}").fetchone()
+            count = result[0] if result else 0
+            logger.info(f"View {view} verified with {count} rows")
+        except Exception as e:
+            logger.error(f"View {view} verification failed: {e}")
+            success = False
+    
+    return success
+
+def create_views():
+    """Create all required views for region analysis."""
+    logger.info("Creating views for regional analysis...")
+    
+    try:
+        # Connect to the database
+        conn = get_db_connection()
+        
+        # Check prerequisites
+        missing_tables, empty_tables = check_prerequisites(conn)
+        
+        if missing_tables:
+            logger.warning("Missing required tables:")
+            for table, desc in missing_tables:
+                logger.warning(f"  - {table}: {desc}")
+            
+            if "states" in [t[0] for t in missing_tables]:
+                logger.info("Attempting to create states table...")
+                create_states_table_if_needed(conn)
+            
+            if len(missing_tables) > 1 or "states" not in [t[0] for t in missing_tables]:
+                logger.error("Cannot proceed with view creation due to missing tables")
+                return False
+        
+        if empty_tables:
+            logger.warning("The following tables have no data:")
+            for table, desc in empty_tables:
+                logger.warning(f"  - {table}: {desc}")
+        
+        # Create basic mapping views
+        logger.info("Creating basic mapping views...")
+        if not create_county_region_map_view(conn):
+            logger.error("Failed to create county region map view")
+            return False
+        
+        if not create_state_region_map_view(conn):
+            logger.error("Failed to create state region map view")
+            return False
+        
+        # Create the land use views
+        logger.info("Creating land use views...")
+        if not create_region_land_use_view(conn):
+            logger.error("Failed to create region land use view")
+            return False
+        
+        if not create_subregion_land_use_view(conn):
+            logger.error("Failed to create subregion land use view")
+            return False
+        
+        if not create_state_land_use_view(conn):
+            logger.error("Failed to create state land use view")
+            return False
+        
+        # Verify all views
+        logger.info("Verifying views...")
+        if not verify_views(conn):
+            logger.error("View verification failed")
+            return False
+        
+        logger.info("All views created and verified successfully!")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error creating views: {e}")
+        return False
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
 def load_to_duckdb(parquet_file, batch_size=1000):
     """
     Load Parquet data into DuckDB database.
@@ -159,6 +517,14 @@ def load_to_duckdb(parquet_file, batch_size=1000):
         
         # Close connection
         conn.close()
+        
+        # Create views for regional analysis
+        if create_views():
+            stats["views_created"] = True
+            logger.info("Regional views created successfully")
+        else:
+            stats["views_created"] = False
+            logger.warning("Failed to create regional views")
         
         logger.info("Database loading completed successfully!")
         return stats
@@ -337,30 +703,34 @@ def verify_database_load():
         conn.close()
 
 def main():
-    """Main function to load data into database."""
-    if len(sys.argv) < 2:
-        print(f"Usage: python {sys.argv[0]} <parquet_file>")
-        sys.exit(1)
+    """
+    Command-line interface for the database loader.
+    Usage: python -m src.data_setup.db_loader <parquet_file> [--views-only]
+    """
+    parser = argparse.ArgumentParser(description="Load RPA land use data into DuckDB")
+    parser.add_argument("parquet_file", nargs="?", help="Path to Parquet file to load", default=None)
+    parser.add_argument("--views-only", action="store_true", help="Only create views without loading data")
     
-    parquet_file = sys.argv[1]
-    print(f"Loading data from {parquet_file} into DuckDB database...")
-    result = load_to_duckdb(parquet_file)
+    args = parser.parse_args()
     
+    if args.views_only:
+        # Create views without loading data
+        logger.info("Creating views without loading data...")
+        success = create_views()
+        return 0 if success else 1
+    
+    if not args.parquet_file:
+        parser.print_help()
+        return 1
+    
+    # Load data and create views
+    result = load_to_duckdb(args.parquet_file)
     if result["success"]:
-        print("Data loaded successfully!")
-        print(f"Records processed: {result['record_count']}")
-        print(f"Scenarios inserted: {result['scenarios_inserted']}")
-        print(f"Time steps inserted: {result['time_steps_inserted']}")
-        print(f"Counties inserted: {result['counties_inserted']}")
-        print(f"Transitions inserted: {result['transitions_inserted']}")
-        
-        # Verify the load
-        verify_result = verify_database_load()
-        if not verify_result["success"]:
-            print(f"Warning: Database verification failed: {verify_result.get('error')}")
+        logger.info("Data loading completed successfully")
+        return 0
     else:
-        print(f"Error loading data: {result.get('error')}")
-        sys.exit(1)
+        logger.error(f"Data loading failed: {result.get('error', 'Unknown error')}")
+        return 1
 
 if __name__ == "__main__":
-    main() 
+    sys.exit(main()) 

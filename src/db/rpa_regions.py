@@ -20,7 +20,7 @@ class RPARegions:
             conn = DatabaseConnection.get_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT region_id, region_name FROM rpa_regions ORDER BY region_name")
-            regions = [{'id': row[0], 'name': row[1]} for row in cursor.fetchall()]
+            regions = [{'region_id': row[0], 'region_name': row[1]} for row in cursor.fetchall()]
             return regions
         except Exception as e:
             logger.error(f"Error getting RPA regions: {e}")
@@ -60,10 +60,10 @@ class RPARegions:
             
             cursor.execute(query, params)
             subregions = [{
-                'id': row[0], 
-                'name': row[1], 
-                'parent_id': row[2],
-                'parent_name': row[3]
+                'subregion_id': row[0], 
+                'subregion_name': row[1], 
+                'region_id': row[2],
+                'region_name': row[3]
             } for row in cursor.fetchall()]
             
             return subregions
@@ -115,9 +115,9 @@ class RPARegions:
             
             cursor.execute(query, params)
             states = [{
-                'fips': row[0],
-                'name': row[1],
-                'abbr': row[2],
+                'state_code': row[0],
+                'state_name': row[1],
+                'state_abbr': row[2],
                 'subregion_id': row[3],
                 'subregion_name': row[4],
                 'region_id': row[5],
@@ -179,9 +179,9 @@ class RPARegions:
             
             cursor.execute(query, params)
             counties = [{
-                'fips': row[0],
-                'name': row[1],
-                'state_fips': row[2],
+                'fips_code': row[0],
+                'county_name': row[1],
+                'state_code': row[2],
                 'state_name': row[3],
                 'state_abbr': row[4],
                 'subregion_id': row[5],
