@@ -9,6 +9,8 @@ import branca.colormap as cm
 from folium.plugins import MarkerCluster, HeatMap
 import sys
 import os
+import json
+from shapely.geometry import mapping
 
 # Add parent directory to path to access shared modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -85,7 +87,7 @@ def get_years():
     """Get a list of all available years from the database."""
     conn = DatabaseConnection.get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT year FROM land_use_projections ORDER BY year")
+    cursor.execute("SELECT DISTINCT start_year as year FROM time_steps ORDER BY year")
     years = [row[0] for row in cursor.fetchall()]
     DatabaseConnection.close_connection(conn)
     return years
@@ -144,29 +146,36 @@ def get_spatial_data(scenario_id, year, land_use_type=None, region_type=None, re
     cursor = conn.cursor()
     
     query = """
-    SELECT r.region_id, r.region_name, r.region_type, lp.land_use_type, 
-           lp.acres, lp.percent_of_region, s.scenario_name, lp.year,
-           ST_AsGeoJSON(r.geometry) as geojson
-    FROM land_use_projections lp
-    JOIN regions r ON lp.region_id = r.region_id
-    JOIN scenarios s ON lp.scenario_id = s.scenario_id
-    WHERE lp.scenario_id = ? AND lp.year = ?
+    SELECT c.fips_code as region_id, c.county_name as region_name, 'COUNTY' as region_type,
+           lt.from_land_use as land_use_type, SUM(lt.acres) as acres,
+           NULL as percent_of_region, s.scenario_name, ts.start_year as year
+    FROM land_use_transitions lt
+    JOIN counties c ON lt.fips_code = c.fips_code
+    JOIN scenarios s ON lt.scenario_id = s.scenario_id
+    JOIN time_steps ts ON lt.time_step_id = ts.time_step_id
+    WHERE lt.scenario_id = ? AND ts.start_year = ?
     """
     params = [scenario_id, year]
     
     if land_use_type:
-        query += " AND lp.land_use_type = ?"
-        params.append(land_use_type)
+        query += " AND (lt.from_land_use = ? OR lt.to_land_use = ?)"
+        params.extend([land_use_type, land_use_type])
     
     if region_type:
-        query += " AND r.region_type = ?"
-        params.append(region_type)
+        if region_type.upper() == 'COUNTY':
+            # Already filtering for counties
+            pass
+        else:
+            # Handle state or other region types
+            query += " AND SUBSTR(c.fips_code, 1, 2) IN (SELECT state_fips FROM states WHERE region_type = ?)"
+            params.append(region_type)
         
     if region_id:
-        query += " AND r.region_id = ?"
+        query += " AND c.fips_code = ?"
         params.append(region_id)
     
-    query += " ORDER BY r.region_name, lp.land_use_type"
+    query += " GROUP BY c.fips_code, c.county_name, lt.from_land_use, s.scenario_name, ts.start_year"
+    query += " ORDER BY c.county_name, lt.from_land_use"
     
     cursor.execute(query, params)
     data = cursor.fetchall()
@@ -177,10 +186,24 @@ def get_spatial_data(scenario_id, year, land_use_type=None, region_type=None, re
     # Create DataFrame
     df = pd.DataFrame(data, columns=columns)
     
-    # Convert geojson strings to objects
-    if 'geojson' in df.columns:
-        df['geometry'] = df['geojson'].apply(json.loads)
-        df = df.drop('geojson', axis=1)
+    # If we have geometry data, process it
+    try:
+        # Try to load county geometries from a GeoJSON file or database
+        # This is a simplified placeholder - you'll need to adapt this to your data structure
+        counties_gdf = gpd.read_file("data/geo/counties.geojson")
+        
+        # Join with our data
+        if 'region_id' in df.columns and 'GEOID' in counties_gdf.columns:
+            counties_gdf = counties_gdf.rename(columns={'GEOID': 'region_id'})
+            df = df.merge(counties_gdf[['region_id', 'geometry']], on='region_id', how='left')
+        
+        # Convert geometry to GeoJSON string
+        if 'geometry' in df.columns:
+            df['geometry'] = df['geometry'].apply(lambda x: json.loads(json.dumps(mapping(x))))
+    except Exception as e:
+        st.warning(f"Could not load geometries: {str(e)}")
+        # Create empty geometry column
+        df['geometry'] = None
     
     DatabaseConnection.close_connection(conn)
     return df
@@ -496,5 +519,4 @@ def main():
     st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    import json  # Import needed for handling GeoJSON
     main() 
