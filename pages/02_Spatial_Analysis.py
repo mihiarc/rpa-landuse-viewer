@@ -100,11 +100,24 @@ def get_regions():
     """Get a list of all available regions from the database."""
     conn = DatabaseConnection.get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT DISTINCT region_id, region_name, region_type 
-        FROM regions 
-        ORDER BY region_type, region_name
-    """)
+    try:
+        # Try using rpa_regions if it exists (suggested by the error message)
+        cursor.execute("""
+            SELECT DISTINCT region_id, region_name, region_type 
+            FROM rpa_regions 
+            ORDER BY region_type, region_name
+        """)
+    except Exception:
+        # Fallback to using counties and states as "regions"
+        cursor.execute("""
+            SELECT fips_code as region_id, county_name as region_name, 'COUNTY' as region_type
+            FROM counties
+            UNION ALL
+            SELECT state_fips as region_id, state_name as region_name, 'STATE' as region_type
+            FROM states
+            ORDER BY region_type, region_name
+        """)
+    
     regions = [{'id': row[0], 'name': row[1], 'type': row[2]} for row in cursor.fetchall()]
     DatabaseConnection.close_connection(conn)
     return regions
@@ -112,35 +125,55 @@ def get_regions():
 @st.cache_data
 def get_region_geojson(region_type):
     """Get GeoJSON for regions of a specific type."""
-    conn = DatabaseConnection.get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT region_id, region_name, region_type, ST_AsGeoJSON(geometry) as geojson
-        FROM regions
-        WHERE region_type = ?
-    """, (region_type,))
-    
-    features = []
-    for row in cursor.fetchall():
-        region_id, region_name, region_type, geojson_str = row
-        geometry = json.loads(geojson_str)
-        features.append({
-            "type": "Feature",
-            "properties": {
-                "region_id": region_id,
-                "region_name": region_name,
-                "region_type": region_type
-            },
-            "geometry": geometry
-        })
-    
-    geojson = {
-        "type": "FeatureCollection",
-        "features": features
-    }
-    
-    DatabaseConnection.close_connection(conn)
-    return geojson
+    try:
+        # Try to load geometry from files
+        if region_type.upper() == 'COUNTY':
+            # Try to load county geometries from a GeoJSON file
+            gdf = gpd.read_file("data/geo/counties.geojson")
+            features = []
+            for _, row in gdf.iterrows():
+                features.append({
+                    "type": "Feature",
+                    "properties": {
+                        "region_id": row.get('GEOID', row.get('FIPS', str(row.name))),
+                        "region_name": row.get('NAME', row.get('COUNTY', "County")),
+                        "region_type": "COUNTY"
+                    },
+                    "geometry": json.loads(json.dumps(mapping(row.geometry)))
+                })
+            
+            geojson = {
+                "type": "FeatureCollection",
+                "features": features
+            }
+            return geojson
+        elif region_type.upper() == 'STATE':
+            # Try to load state geometries from a GeoJSON file
+            gdf = gpd.read_file("data/geo/states.geojson")
+            features = []
+            for _, row in gdf.iterrows():
+                features.append({
+                    "type": "Feature",
+                    "properties": {
+                        "region_id": row.get('STATEFP', row.get('FIPS', str(row.name))),
+                        "region_name": row.get('NAME', row.get('STATE', "State")),
+                        "region_type": "STATE"
+                    },
+                    "geometry": json.loads(json.dumps(mapping(row.geometry)))
+                })
+            
+            geojson = {
+                "type": "FeatureCollection",
+                "features": features
+            }
+            return geojson
+        else:
+            # Default empty GeoJSON for unsupported region types
+            return {"type": "FeatureCollection", "features": []}
+    except Exception as e:
+        st.warning(f"Error loading region GeoJSON: {str(e)}")
+        # Return empty GeoJSON
+        return {"type": "FeatureCollection", "features": []}
 
 @st.cache_data
 def get_spatial_data(scenario_id, year, land_use_type=None, region_type=None, region_id=None):
