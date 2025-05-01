@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from .config import get_map_config, get_charts_config
+from .config import get_map_config, get_chart_config
 
 def create_choropleth_map(
     data: pd.DataFrame,
@@ -138,7 +138,7 @@ def create_bar_chart(
     Returns:
         Plotly figure object
     """
-    charts_config = get_charts_config()
+    charts_config = get_chart_config()
     
     # Use defaults from config if not specified
     if height is None:
@@ -209,7 +209,7 @@ def create_line_chart(
     Returns:
         Plotly figure object
     """
-    charts_config = get_charts_config()
+    charts_config = get_chart_config()
     
     # Use defaults from config if not specified
     if height is None:
@@ -272,7 +272,7 @@ def create_pie_chart(
     Returns:
         Plotly figure object
     """
-    charts_config = get_charts_config()
+    charts_config = get_chart_config()
     
     # Use defaults from config if not specified
     if height is None:
@@ -335,7 +335,7 @@ def create_heatmap(
     Returns:
         Plotly figure object
     """
-    charts_config = get_charts_config()
+    charts_config = get_chart_config()
     
     # Use defaults from config if not specified
     if height is None:
@@ -399,7 +399,7 @@ def create_scatter_plot(
     Returns:
         Plotly figure object
     """
-    charts_config = get_charts_config()
+    charts_config = get_chart_config()
     
     # Use defaults from config if not specified
     if height is None:
@@ -471,7 +471,7 @@ def create_stacked_area_chart(
     Returns:
         Plotly figure object
     """
-    charts_config = get_charts_config()
+    charts_config = get_chart_config()
     
     # Use defaults from config if not specified
     if height is None:
@@ -540,7 +540,7 @@ def create_box_plot(
     Returns:
         Plotly figure object
     """
-    charts_config = get_charts_config()
+    charts_config = get_chart_config()
     
     # Use defaults from config if not specified
     if height is None:
@@ -611,7 +611,7 @@ def create_histogram(
     Returns:
         Plotly figure object
     """
-    charts_config = get_charts_config()
+    charts_config = get_chart_config()
     
     # Use defaults from config if not specified
     if height is None:
@@ -675,7 +675,7 @@ def create_sunburst_chart(
     Returns:
         Plotly figure object
     """
-    charts_config = get_charts_config()
+    charts_config = get_chart_config()
     
     # Use defaults from config if not specified
     if height is None:
