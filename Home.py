@@ -58,10 +58,14 @@ Select different scenarios, years, and geographic areas to visualize the data.
 st.sidebar.header("Data Selection")
 
 # Scenario selection
-scenario = st.sidebar.selectbox(
+scenarios = get_available_scenarios()
+scenario_names = [f"{s['name']} ({s['gcm']}_{s['rcp']}_{s['ssp']})" for s in scenarios]
+selected_scenario_idx = st.sidebar.selectbox(
     "Select Scenario",
-    get_available_scenarios()
+    range(len(scenarios)),
+    format_func=lambda i: scenario_names[i]
 )
+selected_scenario = scenarios[selected_scenario_idx]
 
 # Year selection
 year = st.sidebar.selectbox(
@@ -73,17 +77,29 @@ year = st.sidebar.selectbox(
 st.sidebar.header("Geographic Filters")
 
 # State selection
-state = st.sidebar.selectbox(
+states_data = get_states()
+state_options = ["All States"] + [state['name'] for state in states_data]
+selected_state_name = st.sidebar.selectbox(
     "Select State",
-    ["All States"] + get_states()
+    state_options
 )
 
 # County selection (dependent on state)
 counties = ["All Counties"]
-if state != "All States":
-    counties += get_counties_for_state(state)
+selected_state_fips = None
 
-county = st.sidebar.selectbox(
+if selected_state_name != "All States":
+    # Find the selected state in our data to get its FIPS code
+    for state in states_data:
+        if state['name'] == selected_state_name:
+            selected_state_fips = state['fips']
+            break
+    
+    if selected_state_fips:
+        counties_data = get_counties_for_state(selected_state_fips)
+        counties += [county['name'] for county in counties_data]
+
+selected_county = st.sidebar.selectbox(
     "Select County",
     counties
 )
@@ -97,7 +113,8 @@ vis_type = st.sidebar.selectbox(
 
 # Data loading with a spinner
 with st.spinner("Loading data..."):
-    df = load_scenario_data(scenario, year)
+    # Pass only the scenario ID to the load_scenario_data function
+    df = load_scenario_data(selected_scenario['id'], year)
     
     # Check if data was loaded successfully
     if df.empty:
@@ -105,15 +122,8 @@ with st.spinner("Loading data..."):
         st.stop()
     
     # Apply geographic filters
-    if state != "All States":
-        state_filter = state
-    else:
-        state_filter = None
-        
-    if county != "All Counties":
-        county_filter = county
-    else:
-        county_filter = None
+    state_filter = selected_state_fips if selected_state_name != "All States" else None
+    county_filter = selected_county if selected_county != "All Counties" else None
     
     filtered_df = filter_data(df, state_filter, county_filter)
     
