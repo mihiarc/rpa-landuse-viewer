@@ -41,6 +41,8 @@ coverage.xml
 # Large database files and raw data
 *.db
 data/
+data/raw/
+data/database/
 
 # Dependency directories
 node_modules/
