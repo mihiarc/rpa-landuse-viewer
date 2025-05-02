@@ -43,6 +43,7 @@ coverage.xml
 backup/database/*.db
 data/database/rpa_landuse*.db
 data/database/rpa-landuse*.db
+data/database/rpa_landuse.db
 data/raw/county_landuse_projections_RPA.json
 data/raw/*.csv.gz
 data/raw/*.zip
