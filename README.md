@@ -21,6 +21,17 @@ The dataset includes 20 unique scenarios combining:
   - rcp85_ssp3: High emissions forcing, low growth
   - rcp85_ssp5: High emissions forcing, high growth
 
+### Default Scenario View
+
+By default, the application displays an **Average (All Scenarios)** view that presents the ensemble average across all climate-socioeconomic scenarios. This provides a consensus view of land use projections without requiring users to select a specific scenario. Users can still select individual scenarios from the scenario dropdown menu to explore specific climate-socioeconomic pathways.
+
+To create or update the average scenario view:
+```bash
+# Run the average scenario creation script
+cd data/database
+./create_avg_scenario.sh
+```
+
 ## Data Status
 
 **IMPORTANT**: This dataset is static and will not be updated. It represents a one-time collection of land use projections from the RPA 2020 Assessment. The database and visualization tools in this repository are designed to work with this fixed dataset, and there is no need for continuous integration or deployment for data updates. Once processed and loaded, the database will contain the complete set of projections through 2070.
