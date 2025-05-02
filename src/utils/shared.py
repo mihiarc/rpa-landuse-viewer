@@ -36,7 +36,7 @@ def get_years() -> List[int]:
     """
     conn = DatabaseConnection.get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT start_year FROM time_steps ORDER BY start_year")
+    cursor.execute("SELECT DISTINCT year FROM land_use_summary ORDER BY year")
     years = [row[0] for row in cursor.fetchall()]
     DatabaseConnection.close_connection(conn)
     return years
@@ -88,7 +88,13 @@ def get_counties_by_state(state_fips: str) -> List[Dict[str, Any]]:
     """
     conn = DatabaseConnection.get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT fips_code, county_name FROM counties WHERE state_fips = ? ORDER BY county_name", [state_fips])
+    # Use SUBSTRING to extract the state part from the county FIPS code
+    cursor.execute("""
+        SELECT fips_code, county_name 
+        FROM counties 
+        WHERE SUBSTRING(fips_code, 1, 2) = ? 
+        ORDER BY county_name
+    """, [state_fips])
     counties = [{'fips': row[0], 'name': row[1]} for row in cursor.fetchall()]
     DatabaseConnection.close_connection(conn)
     return counties
