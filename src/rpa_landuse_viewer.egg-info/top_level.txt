@@ -1,6 +1,3 @@
-components
 data_setup
 db
-styles
 utils
-visualization

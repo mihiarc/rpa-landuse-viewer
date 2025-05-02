@@ -46,7 +46,9 @@ class DBManager:
             import duckdb
             db_path = cls._ensure_db_exists()
             connection = duckdb.connect(db_path)
-            connection.execute("PRAGMA threads=4")
+            # Set the number of threads for DuckDB
+            # DuckDB uses SET instead of PRAGMA for configuration
+            connection.execute("SET threads=4")
             return connection
         except Exception as err:
             logger.error(f"Error connecting to DuckDB: {err}")

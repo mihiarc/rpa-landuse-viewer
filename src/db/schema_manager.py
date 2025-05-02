@@ -67,24 +67,18 @@ class SchemaManager:
         """
         Ensure all required indexes exist in the database.
         
-        This method checks for and creates any missing indexes.
+        This method creates all indexes with IF NOT EXISTS to ensure they're present.
+        DuckDB doesn't have a simple way to list indexes like SQLite, so we just recreate them
+        using IF NOT EXISTS which is safe.
         """
         logger.info("Ensuring database indexes are created")
         
         with DBManager.connection() as conn:
             for index_name, index_def in cls.INDEXES:
-                # Check if index exists
-                check_query = f"""
-                SELECT name FROM pragma_index_list('land_use_transitions')
-                WHERE name = '{index_name}'
-                """
-                result = conn.execute(check_query).fetchone()
-                
-                # Create if doesn't exist
-                if not result:
-                    logger.info(f"Creating index {index_name}")
-                    create_query = f"CREATE INDEX IF NOT EXISTS {index_name} ON {index_def}"
-                    conn.execute(create_query)
+                # Just create the index with IF NOT EXISTS
+                logger.info(f"Creating index {index_name}")
+                create_query = f"CREATE INDEX IF NOT EXISTS {index_name} ON {index_def}"
+                conn.execute(create_query)
         
         logger.info("All database indexes are in place")
     
@@ -109,9 +103,8 @@ class SchemaManager:
             logger.info("Vacuuming database")
             conn.execute("VACUUM")
             
-            # Force query optimization
-            logger.info("Optimizing database")
-            conn.execute("PRAGMA optimize")
+            # DuckDB doesn't use PRAGMA optimize - this is built into ANALYZE and VACUUM
+            logger.info("Optimization complete")
         
         logger.info("Database optimization complete")
     

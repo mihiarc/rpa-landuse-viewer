@@ -6,7 +6,7 @@ This script optimizes the database by:
 1. Ensuring all required indexes exist
 2. Running ANALYZE to update statistics
 3. Running VACUUM to reclaim space and optimize storage
-4. Setting optimal pragmas for performance
+4. Applying optimal configuration settings for performance
 """
 
 import os
