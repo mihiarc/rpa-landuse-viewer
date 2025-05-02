@@ -63,4 +63,5 @@ INSERT OR IGNORE INTO land_use_categories (category_code, category_name, descrip
     ('rg', 'Rangeland', 'Rangeland'),
     ('fr', 'Forest', 'Forest land'),
     ('ur', 'Urban', 'Urban developed land'),
-    ('t1', 'Total', 'Total area at starting year'); 
+    ('t1', 'Total', 'Total area at starting year'),
+    ('t2', 'Total', 'Total area at ending year'); 
