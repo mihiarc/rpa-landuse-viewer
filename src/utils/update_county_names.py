@@ -16,9 +16,14 @@ from tqdm import tqdm
 
 # Add the src directory to the Python path
 src_dir = Path(__file__).resolve().parent.parent
-sys.path.append(str(src_dir))
+sys.path.append(str(src_dir.parent))
 
-from src.utils.state_fips_mapping import STATE_FIPS, get_region_from_state
+# Using a relative import when run as a module
+try:
+    from utils.state_fips_mapping import STATE_FIPS, get_region_from_state
+except ImportError:
+    # For when script is run directly
+    from src.utils.state_fips_mapping import STATE_FIPS, get_region_from_state
 
 # Configure logging
 logging.basicConfig(
@@ -86,34 +91,6 @@ def fetch_county_data():
         logger.error(f"Error fetching county data: {e}")
         return pd.DataFrame()
 
-def update_known_counties(conn):
-    """Update specific counties that we know exist in the database."""
-    known_counties = {
-        # Format: 'fips_code': ('county_name', 'state_name', 'region')
-        '05101': ('Newton County', 'Arkansas', 'South'),
-        '13225': ('Peach County', 'Georgia', 'South'),
-        '18161': ('Union County', 'Indiana', 'Midwest'),
-        '27005': ('Becker County', 'Minnesota', 'Midwest'),
-        '27121': ('Wright County', 'Minnesota', 'Midwest'),
-    }
-    
-    logger.info(f"Updating {len(known_counties)} known counties")
-    for fips_code, (county_name, state_name, region) in known_counties.items():
-        conn.execute("""
-        UPDATE counties
-        SET 
-            county_name = ?,
-            state_name = ?,
-            state_fips = ?,
-            region = ?
-        WHERE fips_code = ?
-        """, [
-            county_name,
-            state_name,
-            fips_code[:2],
-            region,
-            fips_code
-        ])
 
 def update_county_names_in_db(db_path=DB_PATH):
     """
@@ -150,9 +127,6 @@ def update_county_names_in_db(db_path=DB_PATH):
         """).fetchone()[0]
         
         logger.info(f"Found {count_missing} counties that need updating")
-        
-        # First update known counties
-        update_known_counties(conn)
         
         # Create a temporary table with the county data
         logger.info("Creating temporary table with Census data")
