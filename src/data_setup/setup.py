@@ -5,7 +5,7 @@ RPA Land Use Data Setup Script
 This script manages the setup of RPA Land Use data:
 1. Converts JSON data to Parquet format
 2. Validates the converted data
-3. [DEPRECATED] Database loading has been updated to use DuckDB (see import_landuse_data.py)
+3. Database loading is handled separately by import_landuse_data.py
 """
 
 import os
@@ -95,8 +95,8 @@ def setup_data(json_file, parquet_file, skip_validation=False):
             results["errors"].append(f"Validation error: {str(e)}")
     
     # Note about database loading
-    logger.info("NOTE: Database loading is now handled by import_landuse_data.py using DuckDB")
-    logger.info("Run python -m src.data_setup.import_landuse_data to import data into DuckDB")
+    logger.info("NOTE: Database loading is handled by import_landuse_data.py")
+    logger.info("Run python -m src.data_setup.import_landuse_data to import data")
     
     # Calculate elapsed time
     elapsed_time = time.time() - start_time
@@ -144,7 +144,7 @@ def main():
     
     if results["success"]:
         logger.info("Data conversion and validation completed successfully!")
-        logger.info("To load data into the DuckDB database, run:")
+        logger.info("To load data into the database, run:")
         logger.info("python -m src.data_setup.import_landuse_data")
     else:
         logger.error("Setup failed. Please check the errors above.")

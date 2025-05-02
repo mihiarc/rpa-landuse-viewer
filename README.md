@@ -72,8 +72,8 @@ flowchart TD
     B -->|src/data_setup/validator.py| C{Validation}
     C -->|Valid| D[DuckDB Database]
     C -->|Invalid| E[Error Handling]
-    D -->|src/data_setup/db_loader.py| F[Create Views]
-    F -->|src/db/queries.py| G[Data Queries]
+    D -->|src/data_setup/import_landuse_data.py| F[Create Database Schema]
+    F -->|src/db/land_use_repository.py| G[Data Queries]
     G --> H[Streamlit App]
 ```
 
@@ -91,16 +91,16 @@ flowchart TD
    - Structured tables for scenarios, time steps, counties, and land use transitions
    - Optimized for querying and analysis
    - Total records: ~5.4 million land use transitions
-   - Regional views for aggregated analysis (counties → states → subregions → regions)
+   - Repository pattern for clean data access
 
 ## Installation
 
 1. Create and activate a Python virtual environment:
 ```bash
 # Using UV (recommended)
-uv venv .venv-py311 --python 3.11
-source .venv-py311/bin/activate  # On Linux/Mac
-# .venv-py311\Scripts\activate  # On Windows
+uv venv
+source .venv/bin/activate  # On Linux/Mac
+# .venv\Scripts\activate  # On Windows
 
 # OR using conda
 conda create -n rpa_landuse python=3.11
@@ -110,7 +110,8 @@ conda activate rpa_landuse
 2. Install the package in development mode:
 ```bash
 # Using UV (recommended)
-uv pip install -r requirements.txt
+uv pip install -e .
+uv pip install duckdb pandas tqdm python-dotenv
 
 # OR using pip
 pip install -e .
@@ -120,30 +121,35 @@ Required dependencies:
 - Pandas: Data processing and analysis
 - DuckDB: Database operations (embedded analytics database)
 - PyArrow: Parquet file handling
-- NumPy: <2.0.0 for compatibility with pandas 1.5.3
 - tqdm: Progress bars for data loading
+- python-dotenv: Environment variable management
 
-## Data Loading
+## Database Setup
 
-1. Convert JSON to Parquet:
+The simplest way to set up the database is to use the provided script:
+
 ```bash
-python -m src.data_setup.converter
+./setup_database.sh
 ```
 
-2. Load data into DuckDB and create regional views:
+This script will:
+1. Create a Python virtual environment using uv
+2. Install required dependencies
+3. Initialize the DuckDB database schema
+4. Import the land use data from the raw JSON file
+
+Alternatively, you can set up the database manually:
+
+1. Create database schema and initialize tables:
 ```bash
-python -m src.data_setup.db_loader data/processed/rpa_landuse_data.parquet
+# Initialize the database
+python -m src.db.initialize_database --optimize
 ```
 
-This will:
-- Create the DuckDB database file at `data/database/rpa_landuse_duck.db` if it doesn't exist
-- Initialize the database schema
-- Load the data from the Parquet file into the database
-- Create necessary regional analysis views
-
-If you only need to create or refresh the regional views:
+2. Import the data into DuckDB:
 ```bash
-python -m src.data_setup.db_loader --views-only
+# Import the land use data
+python -m src.data_setup.import_landuse_data
 ```
 
 ## Working with Existing Database
@@ -153,12 +159,12 @@ If you're joining the project with an existing database setup:
 1. Set up the Python environment:
 ```bash
 # Using UV (recommended)
-uv venv .venv-py311 --python 3.11
-source .venv-py311/bin/activate  # On Linux/Mac
-# .venv-py311\Scripts\activate  # On Windows
+uv venv
+source .venv/bin/activate  # On Linux/Mac
+# .venv\Scripts\activate  # On Windows
 
-# Install requirements
-uv pip install -r requirements.txt
+# Install package and dependencies
+uv pip install -e .
 ```
 
 2. Verify database file exists:
@@ -190,50 +196,41 @@ erDiagram
         string gcm
         string rcp
         string ssp
+        string description
     }
     TIME_STEPS {
         int time_step_id PK
+        string time_step_name
         int start_year
         int end_year
     }
     COUNTIES {
         string fips_code PK
         string county_name
-    }
-    STATES {
-        string state_fips PK
         string state_name
-        string state_abbr
+        string state_fips
+        string region
     }
-    RPA_REGIONS {
-        string region_id PK
-        string region_name
-    }
-    RPA_SUBREGIONS {
-        string subregion_id PK
-        string subregion_name
-        string parent_region_id FK
-    }
-    RPA_STATE_MAPPING {
-        string state_fips FK
-        string subregion_id FK
+    LAND_USE_CATEGORIES {
+        string category_code PK
+        string category_name
+        string description
     }
     LAND_USE_TRANSITIONS {
         int transition_id PK
         int scenario_id FK
         int time_step_id FK
         string fips_code FK
-        string from_land_use
-        string to_land_use
-        float acres
+        string from_land_use FK
+        string to_land_use FK
+        double area_hundreds_acres
     }
     
     SCENARIOS ||--o{ LAND_USE_TRANSITIONS : "has"
     TIME_STEPS ||--o{ LAND_USE_TRANSITIONS : "contains"
     COUNTIES ||--o{ LAND_USE_TRANSITIONS : "includes"
-    COUNTIES }o--|| STATES : "belongs to"
-    STATES }o--|| RPA_SUBREGIONS : "mapped via RPA_STATE_MAPPING"
-    RPA_SUBREGIONS }o--|| RPA_REGIONS : "belongs to"
+    LAND_USE_CATEGORIES ||--o{ LAND_USE_TRANSITIONS : "from_land_use"
+    LAND_USE_CATEGORIES ||--o{ LAND_USE_TRANSITIONS : "to_land_use"
 ```
 
 The DuckDB database includes the following tables:
@@ -244,68 +241,55 @@ The DuckDB database includes the following tables:
    - gcm (Global Climate Model)
    - rcp (Representative Concentration Pathway)
    - ssp (Shared Socioeconomic Pathway)
+   - description
 
 2. `time_steps`
    - time_step_id (PK)
+   - time_step_name
    - start_year
    - end_year
 
 3. `counties`
    - fips_code (PK)
    - county_name
-
-4. `states`
-   - state_fips (PK)
    - state_name
-   - state_abbr
+   - state_fips
+   - region
 
-5. `rpa_regions`
-   - region_id (PK)
-   - region_name
+4. `land_use_categories`
+   - category_code (PK)
+   - category_name
+   - description
 
-6. `rpa_subregions`
-   - subregion_id (PK)
-   - subregion_name
-   - parent_region_id (FK to rpa_regions.region_id)
-
-7. `rpa_state_mapping`
-   - state_fips (FK to states.state_fips)
-   - subregion_id (FK to rpa_subregions.subregion_id)
-
-8. `land_use_transitions`
+5. `land_use_transitions`
    - transition_id (PK)
    - scenario_id (FK)
    - time_step_id (FK)
    - fips_code (FK)
-   - from_land_use
-   - to_land_use
-   - acres
+   - from_land_use (FK)
+   - to_land_use (FK)
+   - area_hundreds_acres
 
-### Database Views
+### Repository Pattern
 
-The database includes multiple views to facilitate regional analysis:
+The application uses a repository pattern to provide a clean API for database access:
 
-1. `county_region_map` - Maps counties to their regions and subregions
-2. `state_region_map` - Maps states to their regions and subregions
-3. `rpa_region_land_use` - Aggregates land use data at the regional level
-4. `rpa_subregion_land_use` - Aggregates land use data at the subregional level
-5. `rpa_state_land_use` - Aggregates land use data at the state level
+1. `base_repository.py` - Base class with common functionality
+2. `region_repository.py` - Methods for accessing regional data
+3. `land_use_repository.py` - Methods for accessing land use transition data
+4. `analysis_repository.py` - Methods for advanced analysis and aggregation
 
-Example regional analysis query:
-```sql
--- Get forest-to-urban conversion by region
-SELECT 
-    rpa_region_name, 
-    SUM(acres) as urban_conversion 
-FROM 
-    rpa_region_land_use 
-WHERE 
-    from_land_use = 'Forest' AND 
-    to_land_use = 'Urban' 
-GROUP BY 
-    rpa_region_name 
-ORDER BY 
-    urban_conversion DESC
+Example query using the repository pattern:
+```python
+from src.db.land_use_repository import LandUseRepository
+
+# Get all land use transitions for a specific county and scenario
+repo = LandUseRepository()
+transitions = repo.get_county_transitions(
+    county_fips="01001",  # Autauga County, AL
+    scenario_id=1,
+    time_step_id=2
+)
 ```
 
 ## Streamlit Dashboard App
@@ -341,7 +325,7 @@ flowchart TD
 A Streamlit-based web application is provided for interactive visualization and analysis of the land use change data. The app features:
 
 1. Data filtering by:
-   - County/State/Region/Subregion
+   - County/State/Region
    - Time period (start and end years)
    - Land use types
    - Scenarios
@@ -394,62 +378,56 @@ The RPA Land Use Viewer includes a hierarchical geographic data structure that o
 
 1. **Counties**: The base level of geographic data, using 5-digit FIPS codes
 2. **States**: Groups counties by state using the first 2 digits of the county FIPS code
-3. **Sub-regions**: Groups states into logical geographical regions defined in the RPA
-4. **Regions**: Groups sub-regions into major regions (North, South, Rocky Mountain, Pacific Coast)
+3. **Regions**: Broader geographic divisions based on state groupings
 
 ### Implementation Details
 
 The database schema implements this hierarchy using:
 
 - **Direct Relationships**: Counties are linked to states via the FIPS code prefix (first 2 digits)
-- **Mapping Tables**: States are mapped to subregions through the `rpa_state_mapping` table
-- **Parent-Child Relationships**: Subregions link to their parent regions through the `parent_region_id` field
-- **Views**: Multiple database views provide aggregated data at different geographic levels
-
-### Key Features
-
-- **Flexible Filtering**: The UI allows filtering by national, regional, state, or county levels
-- **Aggregation**: Data can be viewed at any level of the hierarchy with appropriate aggregation
-- **Relational Integrity**: Foreign key constraints and indexes ensure data consistency across levels
-- **Efficient Querying**: Precalculated views optimize query performance for different geographic scopes
+- **Region Field**: Counties have a region field for broader geographic categorization
+- **Efficient Querying**: Indexes optimize query performance for different geographic scopes
 
 ### Example Usage
 
 ```sql
 -- Get all counties in a specific region
-SELECT c.fips_code, c.county_name, crm.region_name
-FROM counties c
-JOIN county_region_map crm ON c.fips_code = crm.fips_code
-WHERE crm.region_name = 'North Region';
+SELECT fips_code, county_name, region
+FROM counties
+WHERE region = 'North';
 
--- Get aggregated land use data at the regional level
+-- Get aggregated land use data at the state level
 SELECT 
-    rpa_region_name, 
-    from_land_use, 
-    to_land_use, 
-    SUM(acres) as total_acres
+    SUBSTR(c.fips_code, 1, 2) as state_fips,
+    c.state_name,
+    lut.from_land_use, 
+    lut.to_land_use, 
+    SUM(lut.area_hundreds_acres) as total_acres
 FROM 
-    rpa_region_land_use 
+    land_use_transitions lut
+JOIN
+    counties c ON lut.fips_code = c.fips_code
 WHERE 
-    scenario_id = 1 
+    lut.scenario_id = 1 
 GROUP BY 
-    rpa_region_name, from_land_use, to_land_use
+    state_fips, c.state_name, lut.from_land_use, lut.to_land_use
 ORDER BY
-    rpa_region_name, total_acres DESC;
+    state_name, total_acres DESC;
 
--- Compare land use change across subregions within a region
+-- Compare land use change across regions
 SELECT 
-    subregion_name, 
-    from_land_use, 
-    to_land_use, 
-    SUM(acres) as total_acres
+    c.region, 
+    lut.from_land_use, 
+    lut.to_land_use, 
+    SUM(lut.area_hundreds_acres) as total_acres
 FROM 
-    rpa_subregion_land_use 
+    land_use_transitions lut
+JOIN
+    counties c ON lut.fips_code = c.fips_code
 WHERE 
-    parent_region_name = 'South Region' AND
-    from_land_use = 'Forest'
+    lut.from_land_use = 'fr'
 GROUP BY 
-    subregion_name, from_land_use, to_land_use
+    c.region, lut.from_land_use, lut.to_land_use
 ORDER BY
-    subregion_name, total_acres DESC;
+    c.region, total_acres DESC;
 ```
