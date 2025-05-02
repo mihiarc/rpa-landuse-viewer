@@ -2,11 +2,10 @@
 """
 RPA Land Use Data Setup Script
 
-This script orchestrates the one-time setup process for the RPA Land Use data:
+This script manages the setup of RPA Land Use data:
 1. Converts JSON data to Parquet format
 2. Validates the converted data
-3. Loads the data into MySQL database
-4. Verifies the database loading
+3. [DEPRECATED] Database loading has been updated to use DuckDB (see import_landuse_data.py)
 """
 
 import os
@@ -33,20 +32,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from data_setup.converter import convert_json_to_parquet
     from data_setup.validator import validate_parquet_data
-    from data_setup.db_loader import load_to_mysql, verify_database_load
 except ImportError as e:
     logger.error(f"Error importing modules: {e}")
     sys.exit(1)
 
-def setup_data(json_file, parquet_file, skip_validation=False, skip_db_load=False):
+def setup_data(json_file, parquet_file, skip_validation=False):
     """
-    Run the full data setup process.
+    Run the data conversion and validation process.
     
     Args:
         json_file (str): Path to input JSON file
         parquet_file (str): Path to output Parquet file
         skip_validation (bool): Skip data validation step
-        skip_db_load (bool): Skip database loading step
         
     Returns:
         dict: Setup results
@@ -91,54 +88,15 @@ def setup_data(json_file, parquet_file, skip_validation=False, skip_db_load=Fals
                 logger.warning("Consider reviewing these issues before proceeding")
                 for issue in validation_results["issues"]:
                     logger.warning(f"- {issue}")
-                
-                # Ask for confirmation
-                if not skip_db_load:
-                    confirm = input("Data validation found issues. Continue with database loading? (y/n): ")
-                    if confirm.lower() != 'y':
-                        logger.info("Database loading skipped by user")
-                        results["steps_skipped"].append("db_loading")
-                        skip_db_load = True
             else:
                 logger.info("Validation completed successfully: No issues found")
         except Exception as e:
             logger.error(f"Validation failed: {e}")
             results["errors"].append(f"Validation error: {str(e)}")
-            # Still continue to DB load
     
-    # Step 3: Load data to MySQL
-    if skip_db_load:
-        logger.info("STEP 3: Skipping database loading (as requested)")
-        results["steps_skipped"].append("db_loading")
-    else:
-        logger.info("STEP 3: Loading data to MySQL")
-        try:
-            db_stats = load_to_mysql(parquet_file)
-            results["steps_completed"].append("db_loading")
-            results["db_stats"] = db_stats
-            
-            if db_stats["success"]:
-                logger.info("Database loading completed successfully")
-                
-                # Step 4: Verify database load
-                logger.info("STEP 4: Verifying database load")
-                verify_results = verify_database_load()
-                results["steps_completed"].append("verification")
-                results["verification_results"] = verify_results
-                
-                if verify_results["success"]:
-                    logger.info("Database verification completed successfully")
-                else:
-                    logger.error("Database verification failed")
-                    results["errors"].append(f"Verification error: {verify_results.get('error', 'Unknown error')}")
-            else:
-                logger.error("Database loading failed")
-                results["errors"].append(f"Database loading error: {db_stats.get('error', 'Unknown error')}")
-                results["success"] = False
-        except Exception as e:
-            logger.error(f"Database loading failed: {e}")
-            results["errors"].append(f"Database loading error: {str(e)}")
-            results["success"] = False
+    # Note about database loading
+    logger.info("NOTE: Database loading is now handled by import_landuse_data.py using DuckDB")
+    logger.info("Run python -m src.data_setup.import_landuse_data to import data into DuckDB")
     
     # Calculate elapsed time
     elapsed_time = time.time() - start_time
@@ -155,12 +113,10 @@ def main():
                       help='Output Parquet file path')
     parser.add_argument('--skip-validation', action='store_true',
                       help='Skip data validation step')
-    parser.add_argument('--skip-db-load', action='store_true',
-                      help='Skip database loading step')
     args = parser.parse_args()
     
     logger.info("Starting RPA Land Use Data Setup")
-    results = setup_data(args.json, args.parquet, args.skip_validation, args.skip_db_load)
+    results = setup_data(args.json, args.parquet, args.skip_validation)
     
     # Print summary
     logger.info("\n" + "="*50)
@@ -184,19 +140,12 @@ def main():
         for error in results["errors"]:
             logger.info(f"- {error}")
     
-    if "db_stats" in results and results["db_stats"]["success"]:
-        logger.info("\nDatabase Loading Statistics:")
-        db_stats = results["db_stats"]
-        logger.info(f"Records processed: {db_stats['record_count']:,}")
-        logger.info(f"Scenarios inserted: {db_stats['scenarios_inserted']}")
-        logger.info(f"Time steps inserted: {db_stats['time_steps_inserted']}")
-        logger.info(f"Counties inserted: {db_stats['counties_inserted']}")
-        logger.info(f"Transitions inserted: {db_stats['transitions_inserted']:,}")
-    
     logger.info("="*50)
     
     if results["success"]:
-        logger.info("Setup completed successfully!")
+        logger.info("Data conversion and validation completed successfully!")
+        logger.info("To load data into the DuckDB database, run:")
+        logger.info("python -m src.data_setup.import_landuse_data")
     else:
         logger.error("Setup failed. Please check the errors above.")
         sys.exit(1)
