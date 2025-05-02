@@ -1,0 +1,72 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+.venv-py*/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+coverage.xml
+*.cover
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+.DS_Store
+
+# Large database files and raw data
+*.db
+backup/database/*.db
+data/database/rpa_landuse*.db
+data/database/rpa-landuse*.db
+data/raw/county_landuse_projections_RPA.json
+data/raw/*.csv.gz
+data/raw/*.zip
+data/raw/*.tar.gz
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Output directories
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Log files
+logs/
+*.log
+log.txt
+
+# Local configuration
+*.local.yaml
+*.local.yml
+*.local.json
+
+# Environment variables
+.env*
+!.env.example 

@@ -6,47 +6,76 @@ This directory contains shared utility modules used across the RPA Land Use View
 
 The shared utilities are organized into the following modules:
 
-- `shared.py`: Common functions for data loading and UI elements
 - `visualizations.py`: Comprehensive visualization functions for creating charts and maps
 - `data_processing.py`: Functions for data filtering and transformation
 - `data.py`: Data analysis and statistics functions
+- `config.py`: Configuration utilities for the application
+- `session_manager.py`: Manages streamlit session state
 
 ## Usage Examples
 
-### Loading Data
+### Working with Data
 
 ```python
-from src.utils.shared import get_scenarios, get_years, get_states
+from src.utils.data_processing import filter_data, aggregate_data
+from src.utils.data import load_data, calculate_percentage
 
-# Get list of available scenarios
-scenarios = get_scenarios()
+# Load data from file
+df = load_data("path/to/data.csv")
 
-# Get available years 
-years = get_years()
+# Filter data
+filtered_df = filter_data(
+    df=df,
+    scenario="CNRM_CM5_rcp45_ssp1",
+    year=2030
+)
 
-# Get available states
-states = get_states()
+# Aggregate data
+aggregated_df = aggregate_data(
+    df=filtered_df,
+    group_by=["land_use_category"],
+    agg_columns={"acres": "sum"},
+    include_pct=True
+)
+
+# Calculate percentages
+pct_df = calculate_percentage(
+    df=aggregated_df,
+    value_column="acres",
+    group_column="land_use_category"
+)
 ```
 
-### Working with UI Components
+### Configuration Settings
 
 ```python
-from src.utils.shared import load_css, set_page_config, display_metrics
+from src.utils.config import get_map_config, get_chart_config
 
-# Set up page configuration
-set_page_config(title="My Page", icon="📊")
+# Get map configuration
+map_config = get_map_config()
+center_lat = map_config["center"]["lat"]
+center_lon = map_config["center"]["lon"]
+map_zoom = map_config["zoom"]
 
-# Load custom CSS
-load_css()
+# Get chart configuration
+chart_config = get_chart_config()
+chart_height = chart_config["height"]
+chart_template = chart_config["template"]
+```
 
-# Display metrics
-metrics = {
-    "total_acres": 125000,
-    "developed_acres": 45000,
-    "percent_developed": 36.0,
-    "population": 2500000
-}
-display_metrics(metrics)
+### Session Management
+
+```python
+from src.utils.session_manager import initialize_session_state, update_scenario, get_selected_scenario
+
+# Initialize session state
+initialize_session_state()
+
+# Update scenario selection
+update_scenario(scenario_id=1)
+
+# Get current selection
+current_scenario = get_selected_scenario()
 ```
 
 ### Creating Visualizations
@@ -56,7 +85,10 @@ The `visualizations.py` module provides a comprehensive set of functions for cre
 #### Basic Visualizations
 
 ```python
-from src.utils import create_choropleth_map, create_bar_chart, create_pie_chart, create_line_chart
+from src.utils.visualizations import (
+    create_choropleth_map, create_bar_chart, 
+    create_pie_chart, create_line_chart
+)
 
 # Create a choropleth map
 fig_map = create_choropleth_map(
@@ -103,7 +135,7 @@ st.plotly_chart(fig_line, use_container_width=True)
 #### Advanced Visualizations
 
 ```python
-from src.utils import (
+from src.utils.visualizations import (
     create_sankey_diagram, create_heatmap, create_scatter_plot,
     create_stacked_area_chart, create_box_plot, create_histogram,
     create_sunburst_chart
@@ -189,7 +221,7 @@ st.plotly_chart(fig_sunburst, use_container_width=True)
 
 4. **Documentation**: Maintain detailed docstrings for all functions.
 
-5. **Error Handling**: Add appropriate error handling for database connections and data processing.
+5. **Error Handling**: Add appropriate error handling for data loading and processing.
 
 6. **Parameter Defaults**: Provide sensible defaults for optional parameters.
 
@@ -198,7 +230,8 @@ st.plotly_chart(fig_sunburst, use_container_width=True)
 When adding new utility functions:
 
 1. Place the function in the most appropriate module based on its purpose
-2. Add proper type annotations and comprehensive docstrings
-3. Use `@st.cache_data` with an appropriate `ttl` for data loading or processing functions
-4. Maintain consistency with existing coding style and naming conventions
-5. Update this README with examples if adding significant new functionality 
+2. Follow the existing naming conventions and coding style
+3. Include comprehensive docstrings with parameter descriptions
+4. Add type annotations for all parameters and return values
+5. Apply appropriate caching to optimize performance
+6. Handle errors gracefully with specific exception messages 
