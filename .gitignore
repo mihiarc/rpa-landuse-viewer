@@ -40,14 +40,7 @@ coverage.xml
 
 # Large database files and raw data
 *.db
-backup/database/*.db
-data/database/rpa_landuse*.db
-data/database/rpa-landuse*.db
-data/database/rpa_landuse.db
-data/raw/county_landuse_projections_RPA.json
-data/raw/*.csv.gz
-data/raw/*.zip
-data/raw/*.tar.gz
+data/
 
 # Dependency directories
 node_modules/
@@ -71,3 +64,4 @@ log.txt
 # Environment variables
 .env*
 !.env.example 
+data/database/rpa_landuse_duck.db
