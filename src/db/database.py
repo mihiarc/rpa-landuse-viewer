@@ -4,8 +4,9 @@ Database connection module for RPA land use viewer.
 
 import os
 import logging
-import threading
+import contextlib
 from pathlib import Path
+from typing import Optional, Any
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -15,140 +16,108 @@ logger = logging.getLogger(__name__)
 
 # Database configuration
 DB_CONFIG = {
-    'database_path': os.getenv('DB_PATH', 'data/database/rpa_landuse_duck.db')
+    'database_path': os.getenv('DB_PATH', 'data/database/rpa.db')
 }
 
-class DatabaseConnection:
+class DBManager:
     """
-    A class to manage DuckDB database connections.
+    A simplified database manager for DuckDB connections with connection pooling.
     
-    This class uses thread-local storage to ensure each thread gets its own
-    connection to the database, preventing threading issues that can
-    occur when sharing a single connection across threads.
-    
-    Usage:
-        conn = DatabaseConnection.get_connection()
-        # use the connection
-        DatabaseConnection.close_connection(conn)
-        
-        # For pandas operations, use:
-        engine = DatabaseConnection.get_sqlalchemy_engine()
-        # use the engine with pandas
+    This class provides methods for working with the database:
+    - context manager for connections
+    - pandas DataFrame query support
+    - standardized error handling
     """
     
-    # Thread-local storage to hold connections specific to each thread
-    _local = threading.local()
+    _pool = None
+    
+    @classmethod
+    def _ensure_db_exists(cls) -> str:
+        """Ensure database directory exists and return absolute path."""
+        db_path = DB_CONFIG['database_path']
+        path_obj = Path(db_path)
+        path_obj.parent.mkdir(parents=True, exist_ok=True)
+        return str(path_obj.absolute())
     
     @classmethod
     def get_connection(cls):
-        """
-        Get a connection to the DuckDB database.
-        
-        This method creates a thread-specific connection or returns an 
-        existing one for the current thread.
-        
-        Returns:
-            duckdb.DuckDBPyConnection: A connection to the database
-        """
-        # Get the database path from config
-        db_path = DB_CONFIG['database_path']
-        
-        # Create parent directory if it doesn't exist
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        
-        # Create a new connection
-        logger.info(f"Creating new connection to DuckDB database at {db_path}")
-        
+        """Get a connection from the pool or create a new one."""
         try:
             import duckdb
-            # DuckDB has auto-commit enabled by default
+            db_path = cls._ensure_db_exists()
             connection = duckdb.connect(db_path)
-            # Enable parallelism with specific thread count
-            connection.execute("PRAGMA threads=4")
+            # Set the number of threads for concurrent processing
+            connection.execute("SET threads=4")
             return connection
         except Exception as err:
-            logger.error(f"Error connecting to DuckDB database: {err}")
+            logger.error(f"Error connecting to DuckDB: {err}")
             raise
     
     @classmethod
-    def get_sqlalchemy_engine(cls):
-        """
-        Get a SQLAlchemy engine for the DuckDB database.
-        
-        This method creates a SQLAlchemy engine that can be used with pandas
-        to avoid the pandas warning about DuckDB connections.
-        
-        Returns:
-            sqlalchemy.engine.Engine: A SQLAlchemy engine for the database
-        """
-        # Get the database path from config
-        db_path = DB_CONFIG['database_path']
-        
-        # Create parent directory if it doesn't exist
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        
-        logger.info(f"Creating SQLAlchemy engine for DuckDB database at {db_path}")
-        
+    @contextlib.contextmanager
+    def connection(cls):
+        """Context manager for database connections."""
+        conn = None
         try:
-            from sqlalchemy import create_engine
-            # Make sure the path is absolute
-            absolute_path = str(Path(db_path).absolute())
-            # Create SQLAlchemy engine for DuckDB with the proper connection string
-            # The format is "duckdb:///path/to/database.db"
-            engine = create_engine(f"duckdb:///{absolute_path}")
-            return engine
+            conn = cls.get_connection()
+            yield conn
         except Exception as err:
-            logger.error(f"Error creating SQLAlchemy engine for DuckDB: {err}")
+            logger.error(f"Database operation failed: {err}")
             raise
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception as e:
+                    logger.warning(f"Error closing connection: {e}")
     
     @classmethod
-    def execute_pandas_query(cls, query, params=None):
+    def query_df(cls, query: str, params: Optional[list] = None):
         """
-        Execute a SQL query and return results as a pandas DataFrame using SQLAlchemy.
-        
-        This method handles the conversion of DuckDB-style parameterized queries
-        to SQLAlchemy's format, and executes the query using pandas.read_sql_query.
+        Execute a SQL query and return results as a pandas DataFrame.
         
         Args:
-            query (str): SQL query with DuckDB-style placeholders (?)
-            params (list, optional): List of parameters for the query
+            query: SQL query with ? placeholders
+            params: List of parameters for the query
             
         Returns:
-            pandas.DataFrame: Query results as a DataFrame
+            pandas.DataFrame: Query results
         """
-        try:
-            import pandas as pd
-            from sqlalchemy.sql import text
-            
-            # Get SQLAlchemy engine
-            engine = cls.get_sqlalchemy_engine()
-            
-            if params:
-                # Convert DuckDB-style parameterized query to SQLAlchemy format
-                query_text = text(query.replace('?', ':p{}').format(*range(len(params))))
-                param_dict = {f'p{i}': param for i, param in enumerate(params)}
-                return pd.read_sql_query(query_text, engine, params=param_dict)
-            else:
-                # No parameters, use the query directly
-                return pd.read_sql_query(query, engine)
-                
-        except Exception as err:
-            logger.error(f"Error executing pandas query: {err}")
-            # Return empty DataFrame on error
-            import pandas as pd
-            return pd.DataFrame()
-    
-    @staticmethod
-    def close_connection(conn):
-        """
-        Close the database connection.
+        import pandas as pd
         
-        Args:
-            conn: The database connection to close.
-        """
-        if conn is not None:
+        with cls.connection() as conn:
             try:
-                conn.close()
-                logger.debug("Closed database connection")
+                if params:
+                    result = conn.execute(query, params).fetchdf()
+                else:
+                    result = conn.execute(query).fetchdf()
+                return result
             except Exception as err:
-                logger.error(f"Error closing database connection: {err}") 
+                logger.error(f"Query failed: {err}")
+                logger.debug(f"Query: {query}")
+                logger.debug(f"Params: {params}")
+                return pd.DataFrame()
+    
+    @classmethod
+    def execute(cls, query: str, params: Optional[list] = None) -> Any:
+        """
+        Execute a SQL query and return raw results.
+        
+        Args:
+            query: SQL query with ? placeholders
+            params: List of parameters for the query
+            
+        Returns:
+            Query results
+        """
+        with cls.connection() as conn:
+            try:
+                if params:
+                    return conn.execute(query, params).fetchall()
+                else:
+                    return conn.execute(query).fetchall()
+            except Exception as err:
+                logger.error(f"Query execution failed: {err}")
+                logger.debug(f"Query: {query}")
+                logger.debug(f"Params: {params}")
+                return [] 

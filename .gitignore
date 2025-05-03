@@ -1,45 +1,77 @@
-# Python
+# Python bytecode
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 .Python
+.DS_Store
+
+# Virtual environments
 .env
 .venv
 env/
 venv/
 ENV/
-*.egg-info/
+.venv-py*/
+
+# Distribution / packaging
 dist/
 build/
+*.egg-info/
 
-# Environment variables
-.env
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+coverage.xml
+*.cover
 
-# IDE
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
 .DS_Store
 
-# Python cache files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Virtual environments
-venv/
-
-# IDE settings
-.vscode/
-.idea/
-
-# Database
+# Large database files and raw data
 *.db
-*.sqlite3
-
-# Data files
+data/
+data/raw/
+data/database/
+data/database/rpa_landuse_duck.db
+docs/rpa_text/
 *.parquet
-*.csv
-*.json
-!data/county.geo.json
 
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Output directories
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Log files
+logs/
+*.log
+log.txt
+*.pyc
+
+# Local configuration
+*.local.yaml
+*.local.yml
+*.local.json
+
+# Environment variables
+.env*
+!.env.example 
+data/database/rpa_landuse_duck.db
 # archive
 data/
 logs/pandasai.log

@@ -1,33 +1,114 @@
 #!/bin/bash
 
-# Script to run the RPA Land Use tests in a virtual environment using uv
-# Requirements: uv package manager (install via pip install uv)
+# Colors for better output
+GREEN="\033[0;32m"
+RED="\033[0;31m"
+YELLOW="\033[0;33m"
+BLUE="\033[0;34m"
+NC="\033[0m" # No Color
 
-# Stop on any error
-set -e
+# Print header
+echo -e "${BLUE}====================================${NC}"
+echo -e "${BLUE}  RPA Land Use Data Validation Tests ${NC}"
+echo -e "${BLUE}====================================${NC}"
 
-echo "Setting up virtual environment for RPA Land Use tests..."
+# Process command line arguments
+VERBOSE=0
+SPECIFIC_TEST=""
+QUICK=0
 
-# Create virtual environment if it doesn't exist
-if [ ! -d ".venv-test" ]; then
-    echo "Creating new virtual environment with uv using Python 3.11..."
-    uv venv --python=3.11 .venv-test
+for arg in "$@"; do
+  case $arg in
+    -v|--verbose)
+      VERBOSE=1
+      shift
+      ;;
+    -q|--quick)
+      QUICK=1
+      shift
+      ;;
+    -f|--forest)
+      SPECIFIC_TEST="TestForestLand"
+      shift
+      ;;
+    -d|--developed)
+      SPECIFIC_TEST="TestDevelopedLand"
+      shift
+      ;;
+    -c|--crop)
+      SPECIFIC_TEST="TestCropLand"
+      shift
+      ;;
+    -p|--pasture)
+      SPECIFIC_TEST="TestPastureLand"
+      shift
+      ;;
+    -r|--rangeland)
+      SPECIFIC_TEST="TestRangeland"
+      shift
+      ;;
+    -s|--scenarios)
+      SPECIFIC_TEST="TestRPAScenarios"
+      shift
+      ;;
+    *)
+      # Unknown option
+      echo -e "${RED}Unknown option: $arg${NC}"
+      echo "Usage: ./run_tests.sh [-v|--verbose] [-q|--quick] [-f|--forest] [-d|--developed] [-c|--crop] [-p|--pasture] [-r|--rangeland] [-s|--scenarios]"
+      exit 1
+      ;;
+  esac
+done
+
+# Activate the virtual environment
+if [ -d ".venv" ]; then
+  echo -e "${YELLOW}Activating virtual environment...${NC}"
+  source .venv/bin/activate
+else
+  echo -e "${YELLOW}No virtual environment found at .venv. Using system Python.${NC}"
 fi
 
-# Activate virtual environment
-source .venv-test/bin/activate
+# Print Python and package versions
+echo -e "${BLUE}Using Python:${NC} $(python --version)"
+if [ $VERBOSE -eq 1 ]; then
+    echo -e "${BLUE}Package versions:${NC}"
+    pip list | grep -E "pytest|duckdb|pandas"
+fi
 
-# Install the project with development dependencies using pyproject.toml
-echo "Installing project with development dependencies..."
-uv pip install -e ".[dev]"
+# Ensure we're using the correct Python with src in path
+export PYTHONPATH=$PYTHONPATH:$(pwd)
 
-# Run the tests with coverage reporting
-echo "Running tests with coverage..."
-# Use configuration from pyproject.toml for pytest and coverage
-python -m pytest tests/ --cov=src --cov-report=term --cov-report=html:tests/coverage \
-    --ignore=tests/benchmark_duckdb.py \
-    --ignore=tests/generate_query_results.py \
-    --ignore=dev/
+# Prepare pytest command
+PYTEST_CMD="python -m pytest"
 
-echo "Tests completed."
-echo "Coverage report available in tests/coverage directory." 
+# Add verbosity
+if [ $VERBOSE -eq 1 ]; then
+  PYTEST_CMD="$PYTEST_CMD -vv"
+else
+  PYTEST_CMD="$PYTEST_CMD -v"
+fi
+
+# Add specific test if provided
+if [ -n "$SPECIFIC_TEST" ]; then
+  PYTEST_CMD="$PYTEST_CMD tests/test_landuse_data.py::$SPECIFIC_TEST"
+else
+  PYTEST_CMD="$PYTEST_CMD tests/"
+fi
+
+# Add quick mode if selected (only test with MRI-CGCM3 climate model)
+if [ $QUICK -eq 1 ]; then
+  PYTEST_CMD="$PYTEST_CMD -k \"not Middle and not Hot and not Wet and not Dry\""
+fi
+
+# Run tests
+echo -e "${YELLOW}Running tests with: ${PYTEST_CMD}${NC}"
+eval $PYTEST_CMD
+
+# Check exit status
+if [ $? -eq 0 ]; then
+  echo -e "${GREEN}All tests passed!${NC}"
+  exit 0
+else
+  echo -e "${RED}Some tests failed!${NC}"
+  exit 1
+fi 

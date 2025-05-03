@@ -1,13 +1,153 @@
-# RPA Land Use Change Data Processing
+# RPA Land Use Change Data Viewer
 
-This repository contains tools for processing and analyzing the USDA Forest Service's Resources Planning Act (RPA) land use change projection data. The dataset provides county-level land use transition projections for the conterminous United States from 2020 to 2070.
+## About the RPA Assessment
+
+The Resources Planning Act (RPA) Assessment is a report prepared in response to the mandate in the 1974 Forest and Rangeland Renewable Resources Planning Act (Public Law 93-378, 88 Stat 475, as amended). The 2020 RPA Assessment is the sixth report in this series and provides a comprehensive analysis of the status, trends, and projected future of U.S. forests, forest product markets, rangelands, water, biodiversity, outdoor recreation, and the effects of socioeconomic and climatic change upon these resources.
+
+The Assessment evaluates conditions across all ownerships nationwide and projects resource trends from 2020 to 2070 across four scenarios with differing assumptions about:
+- U.S. and global population and economic growth
+- Technology change
+- Bioenergy preferences
+- Openness of international trade
+- Wood-energy consumption
+- Global climate change
+
+The results inform resource managers and policymakers as they develop strategies to sustain natural resources. Important differences are found regionally and locally, highlighting the need for flexible adaptation and management strategies. The USDA Forest Service uses these results to inform strategic planning and forest planning.
+
+## Streamlit Interactive Dashboard
+
+This project includes an interactive Streamlit dashboard for exploring and visualizing the RPA land use data. The dashboard provides an intuitive interface to investigate land use transitions, focusing on urbanization trends and forest land changes across different scenarios and regions.
+
+### Running the Dashboard
+
+1. Ensure you have set up the virtual environment using the provided script:
+   ```bash
+   ./setup_venv.sh
+   ```
+
+2. With the virtual environment activated, run the Streamlit app:
+   ```bash
+   source .venv/bin/activate
+   streamlit run app.py
+   ```
+
+3. The app will open in your default web browser at `http://localhost:8501`
+
+### Dashboard Features
+
+The interactive dashboard includes the following tabs:
+
+1. **Overview**
+   - Display of all RPA Assessment scenarios
+   - Land use categories information
+   - Key findings from the RPA Assessment
+   - Time periods covered in the projections
+
+2. **Urbanization Trends**
+   - Interactive charts showing transitions to urban land by scenario
+   - Visualizations of forest, cropland, and pasture conversion to urban areas over time
+   - Top counties by urbanization rate
+   - Filtering options by scenario
+
+3. **Forest Transitions**
+   - Forest land conversion patterns by destination land use type
+   - Time series analysis of forest land changes
+   - Top counties experiencing forest land loss
+   - Detailed information from the RPA Assessment about forest projections
+
+4. **Data Explorer**
+   - Interactive exploration of all available datasets
+   - Column information and data previews
+   - Basic statistics for each dataset
+   - Data download functionality in CSV format
+
+The dashboard automatically updates when new selections are made, allowing for interactive exploration of the land use projections across different scenarios, time periods, and geographic regions.
+
+## Key Findings
+
+The RPA Assessment projections reveal several important trends for land use in the United States:
+
+- **Developed land area** is projected to increase in the future, while all non-developed land uses are projected to lose area. The most common source of new developed land is forest land.
+
+- **Forest land area** is projected to decrease under all scenarios, although at lower rates than projected by the 2010 Assessment. Overall forest land losses are projected to be between 1.9 and 3.7 percent by 2070.
+
+- **Climate and economic impacts** vary: Higher projected population and income growth lead to relatively less forest land, while hotter projected future climates lead to relatively more forest land.
+
+- **Sensitivity to factors**: Projected future land use change is more sensitive to the variation in economic factors across RPA scenarios than to the variation among climate projections.
+
+- **Regional variations**: The greatest increases in developed land use are projected for the RPA South Region, with highest forest land loss also projected in this region.
 
 ## Dataset Overview
 
-The data represents gross land-use changes projected at the county level, based on an empirical econometric model of observed land-use transitions from 2001-2012 using National Resources Inventory (NRI) data. The projections include:
+The data represents gross land-use changes projected at the county level, based on an empirical econometric model of observed land-use transitions from 2001-2012 using National Resources Inventory (NRI) data. Land use change is a major driver of resource change, and these projections were made for each county in the conterminous United States from 2020 to 2070.
+
+The projections cover five major land use classes (forest, developed, crop, pasture, and rangeland) and are explicitly linked to projected climate change and socioeconomic change through the 20 RPA scenario-climate futures. All land use change was assumed to occur on privately owned land, with land development treated as an irreversible change. The projections are policy-neutral, based on historical land use relationships driven by future climate change and socioeconomic growth assumptions.
+
+### Land-use Change Model
+
+The land use projections were generated using a model that integrates climate, economic, and land quality factors:
+
+```mermaid
+graph LR
+    %% Data nodes (yellow ovals)
+    PRISM["PRISM Historical<br/>Climate"]:::data
+    NetReturns["Net Returns to Land<br/>Production"]:::data
+    SoilQuality["Soil Quality (NRI)"]:::data
+    MACA["MACA Climate<br/>Projections"]:::data
+    SSP["Downscaled SSP<br/>Projections"]:::data
+    
+    %% Ricardian Climate Functions box
+    subgraph RCF["Ricardian Climate Functions"]
+        Forest["Forest"]:::process
+        Crop["Crop"]:::process
+        Urban["Urban"]:::process
+    end
+    
+    %% Process nodes (gray rectangles)
+    LandUseModel["Land-use<br/>Change Model"]:::process
+    
+    %% Output nodes (red hexagons)
+    ClimateParam["Climate<br/>Parameterized<br/>Net Returns"]:::output
+    Transition["Transition<br/>Probability as<br/>Function of<br/>Climate / SSP"]:::output
+    SimulatedChange["Simulated Land<br/>Area Change<br/>(Gross & Net)"]:::output
+    
+    %% Simplified connections to the RCF box
+    PRISM --> RCF
+    NetReturns --> RCF
+    SoilQuality --> RCF
+    
+    %% Connections from RCF components to other nodes
+    Forest --> ClimateParam
+    Crop --> ClimateParam
+    Urban --> ClimateParam
+    
+    ClimateParam --> LandUseModel
+    LandUseModel --> Transition
+    MACA --> Transition
+    SSP --> Transition
+    
+    Transition --> SimulatedChange
+```
+
+This diagram shows how the RPA Land Use Model integrates various inputs:
+- Historical climate data (PRISM)
+- Economic factors (Net Returns to Land Production)
+- Land characteristics (Soil Quality from NRI)
+- Future climate projections (MACA)
+- Future socioeconomic projections (SSPs)
+
+These inputs flow through Ricardian Climate Functions for different land use system types, producing climate-parameterized net returns that feed into the land-use change model. The model generates transition probabilities as functions of climate and socioeconomic factors, ultimately producing the simulated land area changes found in this dataset.
 
 ### Scenarios
-The dataset includes 20 unique scenarios combining:
+The dataset includes 20 unique scenarios that are combinations of climate model projections and socioeconomic pathways. The RPA Integrated scenarios are based on four combinations of climate projections (Representative Concentration Pathways or RCPs) with socioeconomic projections (Shared Socioeconomic Pathways or SSPs):
+
+- **LM**: Lower warming-moderate U.S. growth (RCP4.5-SSP1)
+- **HL**: High warming-low U.S. growth (RCP8.5-SSP3)
+- **HM**: High warming-moderate U.S. growth (RCP8.5-SSP2)
+- **HH**: High warming-high U.S. growth (RCP8.5-SSP5)
+
+Each integrated scenario is run with five different climate models to capture the range of future climate projections:
+
 - Climate Models (GCM):
   - CNRM_CM5 ("wet" climate model)
   - HadGEM2_ES365 ("hot" climate model)
@@ -21,12 +161,8 @@ The dataset includes 20 unique scenarios combining:
   - rcp85_ssp3: High emissions forcing, low growth
   - rcp85_ssp5: High emissions forcing, high growth
 
-## Data Status
-
-**IMPORTANT**: This dataset is static and will not be updated. It represents a one-time collection of land use projections from the RPA 2020 Assessment. The database and visualization tools in this repository are designed to work with this fixed dataset, and there is no need for continuous integration or deployment for data updates. Once processed and loaded, the database will contain the complete set of projections through 2070.
-
 ### Time Periods
-- Calibration period: 2012-2020
+- Calibration period: 2012-2020 (Removed from data viewer)
 - Projection periods: 2020-2070 in 10-year intervals
   - 2020-2030
   - 2030-2040
@@ -47,127 +183,108 @@ Transitions between five main land use types:
 - Counties identified by 5-digit FIPS codes
 - Organized into hierarchical regions (States → Subregions → Regions)
 
-## Data Processing Pipeline
+## Project Setup
 
-### Data Source
+### Requirements
+
+- Python 3.11 or higher
+- UV package manager (recommended)
+- The following Python packages:
+  - pandas, numpy
+  - duckdb, pyarrow
+  - streamlit
+  - matplotlib
+  - python-dotenv
+
+### Environment Setup
+
+The simplest way to set up the environment is to use the provided script:
+
+```bash
+./setup_venv.sh
+```
+
+This script will:
+1. Create a Python virtual environment using UV
+2. Install all required dependencies
+3. Set up the package in development mode
+
+You can also manually install the required packages:
+
+```bash
+# Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+uv pip install -r requirements.txt
+```
+
+## Data Source
 
 This dataset was developed by Mihiar, Lewis & Coulston for the USDA Forest Service for the Resources Planning Act (RPA) 2020 Assessment. Download the data here: https://doi.org/10.2737/RDS-2023-0026. Unzip the .json data file to data/raw/. 
 
-### Pipeline Overview
-
-```mermaid
-flowchart TD
-    A[Raw Data: JSON] -->|src/data_setup/converter.py| B[Processed Data: Parquet]
-    B -->|src/data_setup/validator.py| C{Validation}
-    C -->|Valid| D[DuckDB Database]
-    C -->|Invalid| E[Error Handling]
-    D -->|src/data_setup/db_loader.py| F[Create Views]
-    F -->|src/db/queries.py| G[Data Queries]
-    G --> H[Streamlit App]
-```
-
-1. Raw Data (`data/raw/`)
-   - JSON format: `county_landuse_projections_RPA.json`
-   - Units: Land area in hundreds of acres
-   - See _variable_descriptions.csv for data dictionary
-
-2. Conversion to Parquet
-   - Script: `src/data_setup/converter.py`
-   - Converts JSON to columnar Parquet format for efficient processing
-   - Output: `data/processed/rpa_landuse_data.parquet`
-
-3. DuckDB Database
-   - Structured tables for scenarios, time steps, counties, and land use transitions
-   - Optimized for querying and analysis
-   - Total records: ~5.4 million land use transitions
-   - Regional views for aggregated analysis (counties → states → subregions → regions)
-
-## Installation
-
-1. Create and activate a Python virtual environment:
-```bash
-# Using UV (recommended)
-uv venv .venv-py311 --python 3.11
-source .venv-py311/bin/activate  # On Linux/Mac
-# .venv-py311\Scripts\activate  # On Windows
-
-# OR using conda
-conda create -n rpa_landuse python=3.11
-conda activate rpa_landuse
-```
-
-2. Install the package in development mode:
-```bash
-# Using UV (recommended)
-uv pip install -r requirements.txt
-
-# OR using pip
-pip install -e .
-```
+## Database Setup
 
 Required dependencies:
 - Pandas: Data processing and analysis
 - DuckDB: Database operations (embedded analytics database)
-- PyArrow: Parquet file handling
-- NumPy: <2.0.0 for compatibility with pandas 1.5.3
 - tqdm: Progress bars for data loading
+- python-dotenv: Environment variable management
 
-## Data Loading
+The simplest way to set up the database is to use the provided script:
 
-1. Convert JSON to Parquet:
 ```bash
-python -m src.data_setup.converter
+./setup_database.sh
 ```
 
-2. Load data into DuckDB and create regional views:
+This script will:
+1. Create a Python virtual environment using uv
+2. Install required dependencies
+3. Initialize the DuckDB database schema
+4. Import the land use data from the raw JSON file
+5. Remove the calibration period (2012) data
+6. Remove redundant t1 and t2 columns as these can be calculated from transition data
+
+## Querying the Database
+
+The repository includes a command-line tool (`query_db.py`) for quick data exploration and analysis:
+
 ```bash
-python -m src.data_setup.db_loader data/processed/rpa_landuse_data.parquet
+# Make the script executable if needed
+chmod +x query_db.py
+
+# List all available tables
+./query_db.py tables
+
+# View database schema for a specific table
+./query_db.py describe land_use_transitions
+
+# List all scenarios
+./query_db.py scenarios
+
+# List all time steps
+./query_db.py timesteps
+
+# List all land use types
+./query_db.py landuse
+
+# List counties (optionally filter by state)
+./query_db.py counties
+./query_db.py counties --state "California"
+
+# Query land use transitions with filtering options
+./query_db.py transitions --scenario 1 --timestep 2 --limit 10
+./query_db.py transitions --scenario 1 --timestep 2 --county "01001" --from cr --to ur
+
+# Run a custom SQL query
+./query_db.py query "SELECT * FROM scenarios LIMIT 5"
+
+# Enter interactive SQL mode
+./query_db.py interactive
 ```
 
-This will:
-- Create the DuckDB database file at `data/database/rpa_landuse_duck.db` if it doesn't exist
-- Initialize the database schema
-- Load the data from the Parquet file into the database
-- Create necessary regional analysis views
-
-If you only need to create or refresh the regional views:
-```bash
-python -m src.data_setup.db_loader --views-only
-```
-
-## Working with Existing Database
-
-If you're joining the project with an existing database setup:
-
-1. Set up the Python environment:
-```bash
-# Using UV (recommended)
-uv venv .venv-py311 --python 3.11
-source .venv-py311/bin/activate  # On Linux/Mac
-# .venv-py311\Scripts\activate  # On Windows
-
-# Install requirements
-uv pip install -r requirements.txt
-```
-
-2. Verify database file exists:
-```bash
-# Check if DuckDB database file exists
-ls -l data/database/rpa_landuse_duck.db
-```
-
-3. Verify data availability (using Python):
-```python
-import duckdb
-conn = duckdb.connect('data/database/rpa_landuse_duck.db')
-print(conn.execute('SELECT COUNT(*) FROM land_use_transitions').fetchone()[0])
-conn.close()
-```
-
-Alternatively, if you've installed DuckDB CLI:
-```bash
-duckdb data/database/rpa_landuse_duck.db "SELECT COUNT(*) FROM land_use_transitions"
-```
+The interactive mode provides a SQL prompt where you can run multiple queries in sequence, which is useful for exploratory data analysis.
 
 ### Database Schema
 
@@ -179,50 +296,41 @@ erDiagram
         string gcm
         string rcp
         string ssp
+        string description
     }
     TIME_STEPS {
         int time_step_id PK
+        string time_step_name
         int start_year
         int end_year
     }
     COUNTIES {
         string fips_code PK
         string county_name
-    }
-    STATES {
-        string state_fips PK
         string state_name
-        string state_abbr
+        string state_fips
+        string region
     }
-    RPA_REGIONS {
-        string region_id PK
-        string region_name
-    }
-    RPA_SUBREGIONS {
-        string subregion_id PK
-        string subregion_name
-        string parent_region_id FK
-    }
-    RPA_STATE_MAPPING {
-        string state_fips FK
-        string subregion_id FK
+    LAND_USE_CATEGORIES {
+        string category_code PK
+        string category_name
+        string description
     }
     LAND_USE_TRANSITIONS {
         int transition_id PK
         int scenario_id FK
         int time_step_id FK
         string fips_code FK
-        string from_land_use
-        string to_land_use
-        float acres
+        string from_land_use FK
+        string to_land_use FK
+        double area_hundreds_acres
     }
     
     SCENARIOS ||--o{ LAND_USE_TRANSITIONS : "has"
     TIME_STEPS ||--o{ LAND_USE_TRANSITIONS : "contains"
     COUNTIES ||--o{ LAND_USE_TRANSITIONS : "includes"
-    COUNTIES }o--|| STATES : "belongs to"
-    STATES }o--|| RPA_SUBREGIONS : "mapped via RPA_STATE_MAPPING"
-    RPA_SUBREGIONS }o--|| RPA_REGIONS : "belongs to"
+    LAND_USE_CATEGORIES ||--o{ LAND_USE_TRANSITIONS : "from_land_use"
+    LAND_USE_CATEGORIES ||--o{ LAND_USE_TRANSITIONS : "to_land_use"
 ```
 
 The DuckDB database includes the following tables:
@@ -233,212 +341,31 @@ The DuckDB database includes the following tables:
    - gcm (Global Climate Model)
    - rcp (Representative Concentration Pathway)
    - ssp (Shared Socioeconomic Pathway)
+   - description
 
 2. `time_steps`
    - time_step_id (PK)
+   - time_step_name
    - start_year
    - end_year
 
 3. `counties`
    - fips_code (PK)
    - county_name
-
-4. `states`
-   - state_fips (PK)
    - state_name
-   - state_abbr
+   - state_fips
+   - region
 
-5. `rpa_regions`
-   - region_id (PK)
-   - region_name
+4. `land_use_categories`
+   - category_code (PK)
+   - category_name
+   - description
 
-6. `rpa_subregions`
-   - subregion_id (PK)
-   - subregion_name
-   - parent_region_id (FK to rpa_regions.region_id)
-
-7. `rpa_state_mapping`
-   - state_fips (FK to states.state_fips)
-   - subregion_id (FK to rpa_subregions.subregion_id)
-
-8. `land_use_transitions`
+5. `land_use_transitions`
    - transition_id (PK)
    - scenario_id (FK)
    - time_step_id (FK)
    - fips_code (FK)
-   - from_land_use
-   - to_land_use
-   - acres
-
-### Database Views
-
-The database includes multiple views to facilitate regional analysis:
-
-1. `county_region_map` - Maps counties to their regions and subregions
-2. `state_region_map` - Maps states to their regions and subregions
-3. `rpa_region_land_use` - Aggregates land use data at the regional level
-4. `rpa_subregion_land_use` - Aggregates land use data at the subregional level
-5. `rpa_state_land_use` - Aggregates land use data at the state level
-
-Example regional analysis query:
-```sql
--- Get forest-to-urban conversion by region
-SELECT 
-    rpa_region_name, 
-    SUM(acres) as urban_conversion 
-FROM 
-    rpa_region_land_use 
-WHERE 
-    from_land_use = 'Forest' AND 
-    to_land_use = 'Urban' 
-GROUP BY 
-    rpa_region_name 
-ORDER BY 
-    urban_conversion DESC
-```
-
-## Streamlit Dashboard App
-
-### Application Architecture
-
-```mermaid
-flowchart TD
-    A[Home.py] --> B[Main Dashboard]
-    A --> C[Pages]
-    
-    B --> D[Data Filtering]
-    D --> D1[County Selection]
-    D --> D2[Time Period Selection]
-    D --> D3[Land Use Type Selection]
-    D --> D4[Region Selection]
-    
-    B --> E[Data Visualization]
-    E --> E1[Data Tables]
-    E --> E2[Charts/Graphs]
-    E --> E3[Maps]
-    
-    B --> F[AI Analysis]
-    F --> F1[PandasAI Integration]
-    F --> F2[Natural Language Queries]
-    
-    C --> G[County Explorer]
-    C --> H[Comparison Tool]
-    C --> I[Projection Analysis]
-    C --> J[Regional Analysis]
-```
-
-A Streamlit-based web application is provided for interactive visualization and analysis of the land use change data. The app features:
-
-1. Data filtering by:
-   - County/State/Region/Subregion
-   - Time period (start and end years)
-   - Land use types
-   - Scenarios
-
-2. Multiple view options:
-   - Data tables with land use transition details
-   - Statistical summaries of land changes
-   - Map visualizations
-
-3. AI-powered analysis:
-   - Natural language querying of the data using PandasAI
-   - Ask questions about trends, patterns, and statistical information
-
-### Running the Dashboard
-
-1. Set up environment variables:
-```bash
-# Copy the example environment file
-cp .env.example .env
-
-# Edit the .env file to add your OpenAI API key
-nano .env  # or use any text editor
-```
-
-2. Run the application:
-```bash
-# Using the provided script (Linux/Mac)
-./run_with_py311.sh
-
-# OR manually
-streamlit run Home.py
-```
-
-3. Open your browser to http://localhost:8501
-
-### Example Queries for PandasAI
-
-Once the app is running, you can ask questions about the data such as:
-- "What land use type lost the most acreage?"
-- "What's the top destination for converted forest land?"
-- "Show me a bar chart of acres by land use type"
-- "Calculate the percentage change for each land use type"
-- "Which region has the highest forest-to-urban conversion?"
-
-## Geographic Data Hierarchy
-
-The RPA Land Use Viewer includes a hierarchical geographic data structure that organizes spatial data across multiple administrative levels:
-
-### Geographic Levels
-
-1. **Counties**: The base level of geographic data, using 5-digit FIPS codes
-2. **States**: Groups counties by state using the first 2 digits of the county FIPS code
-3. **Sub-regions**: Groups states into logical geographical regions defined in the RPA
-4. **Regions**: Groups sub-regions into major regions (North, South, Rocky Mountain, Pacific Coast)
-
-### Implementation Details
-
-The database schema implements this hierarchy using:
-
-- **Direct Relationships**: Counties are linked to states via the FIPS code prefix (first 2 digits)
-- **Mapping Tables**: States are mapped to subregions through the `rpa_state_mapping` table
-- **Parent-Child Relationships**: Subregions link to their parent regions through the `parent_region_id` field
-- **Views**: Multiple database views provide aggregated data at different geographic levels
-
-### Key Features
-
-- **Flexible Filtering**: The UI allows filtering by national, regional, state, or county levels
-- **Aggregation**: Data can be viewed at any level of the hierarchy with appropriate aggregation
-- **Relational Integrity**: Foreign key constraints and indexes ensure data consistency across levels
-- **Efficient Querying**: Precalculated views optimize query performance for different geographic scopes
-
-### Example Usage
-
-```sql
--- Get all counties in a specific region
-SELECT c.fips_code, c.county_name, crm.region_name
-FROM counties c
-JOIN county_region_map crm ON c.fips_code = crm.fips_code
-WHERE crm.region_name = 'North Region';
-
--- Get aggregated land use data at the regional level
-SELECT 
-    rpa_region_name, 
-    from_land_use, 
-    to_land_use, 
-    SUM(acres) as total_acres
-FROM 
-    rpa_region_land_use 
-WHERE 
-    scenario_id = 1 
-GROUP BY 
-    rpa_region_name, from_land_use, to_land_use
-ORDER BY
-    rpa_region_name, total_acres DESC;
-
--- Compare land use change across subregions within a region
-SELECT 
-    subregion_name, 
-    from_land_use, 
-    to_land_use, 
-    SUM(acres) as total_acres
-FROM 
-    rpa_subregion_land_use 
-WHERE 
-    parent_region_name = 'South Region' AND
-    from_land_use = 'Forest'
-GROUP BY 
-    subregion_name, from_land_use, to_land_use
-ORDER BY
-    subregion_name, total_acres DESC;
-```
+   - from_land_use (FK)
+   - to_land_use (FK)
+   - area_hundreds_acres
