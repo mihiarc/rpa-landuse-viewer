@@ -34,6 +34,17 @@ logger = logging.getLogger("parquet-data-import")
 # Default Parquet data path
 DEFAULT_PARQUET_PATH = "data/raw/rpa_landuse_data_filtered.parquet"
 
+# Mapping from Parquet file land use names to database land use codes
+LANDUSE_NAME_TO_CODE = {
+    'Crop': 'cr',
+    'Cropland': 'cr',
+    'Pasture': 'ps',
+    'Rangeland': 'rg',
+    'Range': 'rg',
+    'Forest': 'fr',
+    'Urban': 'ur'
+}
+
 def setup_database():
     """Ensure database is initialized before importing data."""
     SchemaManager.initialize_database()
@@ -187,6 +198,7 @@ def process_transitions(df, scenario_map, decade_map):
     batch_size = 100000
     transition_id = 1
     total_transitions = 0
+    unknown_landuse_types = set()
     
     # Prepare the needed columns for transitions
     transitions = []
@@ -197,13 +209,29 @@ def process_transitions(df, scenario_map, decade_map):
             scenario_id = scenario_map[row['Scenario']]
             decade_id = decade_map[row['YearRange']]
             
+            # Map the land use types from names to codes
+            from_landuse = row['From']
+            to_landuse = row['To']
+            
+            # Convert to database codes using the mapping
+            from_code = LANDUSE_NAME_TO_CODE.get(from_landuse)
+            to_code = LANDUSE_NAME_TO_CODE.get(to_landuse)
+            
+            # Skip records with unknown land use types
+            if from_code is None:
+                unknown_landuse_types.add(from_landuse)
+                continue
+            if to_code is None:
+                unknown_landuse_types.add(to_landuse)
+                continue
+            
             transitions.append({
                 'transition_id': transition_id,
                 'scenario_id': scenario_id,
                 'decade_id': decade_id,
                 'fips_code': row['FIPS'],
-                'from_landuse': row['From'],
-                'to_landuse': row['To'],
+                'from_landuse': from_code,
+                'to_landuse': to_code,
                 'area_hundreds_acres': row['Acres']
             })
             transition_id += 1
@@ -230,6 +258,10 @@ def process_transitions(df, scenario_map, decade_map):
             """)
             total_transitions += len(transitions)
             logger.info(f"Inserted batch - Total transitions: {total_transitions}")
+    
+    # Log any unknown land use types
+    if unknown_landuse_types:
+        logger.warning(f"Found {len(unknown_landuse_types)} unknown land use types: {unknown_landuse_types}")
     
     logger.info(f"Inserted {total_transitions} land use transitions in total")
 
