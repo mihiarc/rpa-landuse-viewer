@@ -137,6 +137,8 @@ This script will:
 2. Install required dependencies
 3. Initialize the DuckDB database schema
 4. Import the land use data from the raw JSON file
+5. Remove the calibration period (2012) data
+6. Remove redundant t1 and t2 columns as these can be calculated from transition data
 
 Alternatively, you can set up the database manually:
 
@@ -170,21 +172,61 @@ uv pip install -e .
 2. Verify database file exists:
 ```bash
 # Check if DuckDB database file exists
-ls -l data/database/rpa_landuse_duck.db
+ls -l data/database/rpa.db
 ```
 
 3. Verify data availability (using Python):
 ```python
 import duckdb
-conn = duckdb.connect('data/database/rpa_landuse_duck.db')
+conn = duckdb.connect('data/database/rpa.db')
 print(conn.execute('SELECT COUNT(*) FROM land_use_transitions').fetchone()[0])
 conn.close()
 ```
 
 Alternatively, if you've installed DuckDB CLI:
 ```bash
-duckdb data/database/rpa_landuse_duck.db "SELECT COUNT(*) FROM land_use_transitions"
+duckdb data/database/rpa.db "SELECT COUNT(*) FROM land_use_transitions"
 ```
+
+## Querying the Database
+
+The repository includes a command-line tool (`query_db.py`) for quick data exploration and analysis:
+
+```bash
+# Make the script executable if needed
+chmod +x query_db.py
+
+# List all available tables
+./query_db.py tables
+
+# View database schema for a specific table
+./query_db.py describe land_use_transitions
+
+# List all scenarios
+./query_db.py scenarios
+
+# List all time steps
+./query_db.py timesteps
+
+# List all land use types
+./query_db.py landuse
+
+# List counties (optionally filter by state)
+./query_db.py counties
+./query_db.py counties --state "California"
+
+# Query land use transitions with filtering options
+./query_db.py transitions --scenario 1 --timestep 2 --limit 10
+./query_db.py transitions --scenario 1 --timestep 2 --county "01001" --from cr --to ur
+
+# Run a custom SQL query
+./query_db.py query "SELECT * FROM scenarios LIMIT 5"
+
+# Enter interactive SQL mode
+./query_db.py interactive
+```
+
+The interactive mode provides a SQL prompt where you can run multiple queries in sequence, which is useful for exploratory data analysis.
 
 ### Database Schema
 

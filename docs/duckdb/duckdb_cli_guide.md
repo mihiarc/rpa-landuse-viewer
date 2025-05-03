@@ -28,7 +28,7 @@ To start the DuckDB CLI with the RPA Land Use database:
 cd /path/to/rpa-landuse-viewer
 
 # Start DuckDB with the database file
-duckdb data/database/rpa_landuse_duck.db
+duckdb data/database/rpa.db
 ```
 
 You should see a prompt like:

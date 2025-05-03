@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Database configuration
 DB_CONFIG = {
-    'database_path': os.getenv('DB_PATH', 'data/database/rpa_landuse_duck.db')
+    'database_path': os.getenv('DB_PATH', 'data/database/rpa.db')
 }
 
 class DBManager:

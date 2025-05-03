@@ -53,7 +53,7 @@ python -c "
 import duckdb
 
 # Connect to database once for all operations
-conn = duckdb.connect('data/database/landuse.db')
+conn = duckdb.connect('data/database/rpa.db')
 
 # 1. Remove the calibration period (2012)
 print('Identifying time_step_id for 2012...')

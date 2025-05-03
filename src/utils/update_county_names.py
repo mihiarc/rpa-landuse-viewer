@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Default database path
-DB_PATH = Path(src_dir).parent / "data" / "database" / "rpa_landuse_duck.db"
+DB_PATH = Path(src_dir).parent / "data" / "database" / "rpa.db"
 
 def fetch_county_data():
     """

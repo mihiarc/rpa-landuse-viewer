@@ -4,7 +4,7 @@
 
 ```bash
 # Start the CLI with a database
-duckdb data/database/rpa_landuse_duck.db
+duckdb data/database/rpa.db
 
 # Exit the CLI
 .exit or .quit

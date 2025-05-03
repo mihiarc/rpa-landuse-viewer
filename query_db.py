@@ -13,7 +13,7 @@ import pandas as pd
 from pathlib import Path
 
 # Default database path
-DB_PATH = "data/database/rpa_landuse_duck.db"
+DB_PATH = "data/database/rpa.db"
 
 def get_connection(db_path=DB_PATH):
     """Get a DuckDB connection."""

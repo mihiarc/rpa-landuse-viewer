@@ -4,7 +4,7 @@ This document provides a comprehensive overview of the database schema used in t
 
 ## Database Overview
 
-- **Database File**: `data/database/rpa_landuse_duck.db`
+- **Database File**: `data/database/rpa.db`
 - **Total Size**: ~319MB
 - **Records**: 5,432,198 land use transitions across 3,068 counties with 20 scenarios and 6 time steps
 
@@ -430,7 +430,7 @@ To effectively version control this DuckDB schema:
 
 3. **Schema Dump Command**: Use the following command to dump the current schema for version control:
    ```bash
-   duckdb data/database/rpa_landuse_duck.db ".schema" > docs/current_schema.sql
+   duckdb data/database/rpa.db ".schema" > docs/current_schema.sql
    ```
 
 4. **Schema Verification**: Add a verification step to ensure the schema matches what's expected:
@@ -443,7 +443,7 @@ To effectively version control this DuckDB schema:
    # Count records in each table
    echo "Table record counts:" > docs/schema_stats.md
    echo "-------------------" >> docs/schema_stats.md
-   duckdb data/database/rpa_landuse_duck.db "SELECT 'scenarios: ' || COUNT(*) FROM scenarios; SELECT 'time_steps: ' || COUNT(*) FROM time_steps; SELECT 'counties: ' || COUNT(*) FROM counties; SELECT 'land_use_transitions: ' || COUNT(*) FROM land_use_transitions; SELECT 'rpa_regions: ' || COUNT(*) FROM rpa_regions; SELECT 'rpa_subregions: ' || COUNT(*) FROM rpa_subregions; SELECT 'rpa_state_mapping: ' || COUNT(*) FROM rpa_state_mapping;" >> docs/schema_stats.md
+   duckdb data/database/rpa.db "SELECT 'scenarios: ' || COUNT(*) FROM scenarios; SELECT 'time_steps: ' || COUNT(*) FROM time_steps; SELECT 'counties: ' || COUNT(*) FROM counties; SELECT 'land_use_transitions: ' || COUNT(*) FROM land_use_transitions; SELECT 'rpa_regions: ' || COUNT(*) FROM rpa_regions; SELECT 'rpa_subregions: ' || COUNT(*) FROM rpa_subregions; SELECT 'rpa_state_mapping: ' || COUNT(*) FROM rpa_state_mapping;" >> docs/schema_stats.md
    ```
 
 ## Query Performance Considerations
