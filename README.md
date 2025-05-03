@@ -14,6 +14,55 @@ The Assessment evaluates conditions across all ownerships nationwide and project
 
 The results inform resource managers and policymakers as they develop strategies to sustain natural resources. Important differences are found regionally and locally, highlighting the need for flexible adaptation and management strategies. The USDA Forest Service uses these results to inform strategic planning and forest planning.
 
+## Streamlit Interactive Dashboard
+
+This project includes an interactive Streamlit dashboard for exploring and visualizing the RPA land use data. The dashboard provides an intuitive interface to investigate land use transitions, focusing on urbanization trends and forest land changes across different scenarios and regions.
+
+### Running the Dashboard
+
+1. Ensure you have set up the virtual environment using the provided script:
+   ```bash
+   ./setup_venv.sh
+   ```
+
+2. With the virtual environment activated, run the Streamlit app:
+   ```bash
+   source .venv/bin/activate
+   streamlit run app.py
+   ```
+
+3. The app will open in your default web browser at `http://localhost:8501`
+
+### Dashboard Features
+
+The interactive dashboard includes the following tabs:
+
+1. **Overview**
+   - Display of all RPA Assessment scenarios
+   - Land use categories information
+   - Key findings from the RPA Assessment
+   - Time periods covered in the projections
+
+2. **Urbanization Trends**
+   - Interactive charts showing transitions to urban land by scenario
+   - Visualizations of forest, cropland, and pasture conversion to urban areas over time
+   - Top counties by urbanization rate
+   - Filtering options by scenario
+
+3. **Forest Transitions**
+   - Forest land conversion patterns by destination land use type
+   - Time series analysis of forest land changes
+   - Top counties experiencing forest land loss
+   - Detailed information from the RPA Assessment about forest projections
+
+4. **Data Explorer**
+   - Interactive exploration of all available datasets
+   - Column information and data previews
+   - Basic statistics for each dataset
+   - Data download functionality in CSV format
+
+The dashboard automatically updates when new selections are made, allowing for interactive exploration of the land use projections across different scenarios, time periods, and geographic regions.
+
 ## Key Findings
 
 The RPA Assessment projections reveal several important trends for land use in the United States:
@@ -112,10 +161,6 @@ Each integrated scenario is run with five different climate models to capture th
   - rcp85_ssp3: High emissions forcing, low growth
   - rcp85_ssp5: High emissions forcing, high growth
 
-### Default Scenario View (Coming Soon)
-
-By default, the application displays an **Average (All Scenarios)** view that presents the ensemble average across all climate-socioeconomic scenarios. This provides a consensus view of land use projections without requiring users to select a specific scenario. Users can still select individual scenarios from the scenario dropdown menu to explore specific climate-socioeconomic pathways.
-
 ### Time Periods
 - Calibration period: 2012-2020 (Removed from data viewer)
 - Projection periods: 2020-2070 in 10-year intervals
@@ -137,6 +182,43 @@ Transitions between five main land use types:
 - All counties in the conterminous United States
 - Counties identified by 5-digit FIPS codes
 - Organized into hierarchical regions (States → Subregions → Regions)
+
+## Project Setup
+
+### Requirements
+
+- Python 3.11 or higher
+- UV package manager (recommended)
+- The following Python packages:
+  - pandas, numpy
+  - duckdb, pyarrow
+  - streamlit
+  - matplotlib
+  - python-dotenv
+
+### Environment Setup
+
+The simplest way to set up the environment is to use the provided script:
+
+```bash
+./setup_venv.sh
+```
+
+This script will:
+1. Create a Python virtual environment using UV
+2. Install all required dependencies
+3. Set up the package in development mode
+
+You can also manually install the required packages:
+
+```bash
+# Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+uv pip install -r requirements.txt
+```
 
 ## Data Source
 
@@ -287,43 +369,3 @@ The DuckDB database includes the following tables:
    - from_land_use (FK)
    - to_land_use (FK)
    - area_hundreds_acres
-
-### Repository Pattern (In Development -- needs testing)
-
-The application uses a repository pattern to provide a clean API for database access:
-
-1. `base_repository.py` - Base class with common functionality
-2. `region_repository.py` - Methods for accessing regional data
-3. `land_use_repository.py` - Methods for accessing land use transition data
-4. `analysis_repository.py` - Methods for advanced analysis and aggregation
-
-Example query using the repository pattern:
-```python
-from src.db.land_use_repository import LandUseRepository
-
-# Get all land use transitions for a specific county and scenario
-repo = LandUseRepository()
-transitions = repo.get_county_transitions(
-    county_fips="01001",  # Autauga County, AL
-    scenario_id=1,
-    time_step_id=2
-)
-```
-
-## Geographic Data Hierarchy (Coming Soon)
-
-The RPA Land Use Viewer includes a hierarchical geographic data structure that organizes spatial data across multiple administrative levels:
-
-### Geographic Levels
-
-1. **Counties**: The base level of geographic data, using 5-digit FIPS codes
-2. **States**: Groups counties by state using the first 2 digits of the county FIPS code
-3. **Regions**: Broader geographic divisions based on state groupings
-
-### Implementation Details
-
-The database schema implements this hierarchy using:
-
-- **Direct Relationships**: Counties are linked to states via the FIPS code prefix (first 2 digits)
-- **Region Field**: Counties have a region field for broader geographic categorization
-- **Efficient Querying**: Indexes optimize query performance for different geographic scopes

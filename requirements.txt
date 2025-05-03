@@ -11,6 +11,9 @@ httpx>=0.24.0
 python-dotenv>=1.0.0
 scipy>=1.10.1
 
+# Streamlit for interactive visualization
+streamlit>=1.0.0
+
 # Development tools
 pytest>=7.4.0
 flake8>=6.1.0
