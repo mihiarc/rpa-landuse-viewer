@@ -12,9 +12,9 @@ CREATE TABLE IF NOT EXISTS scenarios (
 );
 
 -- Time steps
-CREATE TABLE IF NOT EXISTS time_steps (
-    time_step_id INTEGER PRIMARY KEY,
-    time_step_name TEXT UNIQUE NOT NULL, -- e.g., "2012-2020"
+CREATE TABLE IF NOT EXISTS decades (
+    decade_id INTEGER PRIMARY KEY,
+    decade_name TEXT UNIQUE NOT NULL, -- e.g., "2020-2030"
     start_year INTEGER NOT NULL,
     end_year INTEGER NOT NULL
 );
@@ -25,43 +25,42 @@ CREATE TABLE IF NOT EXISTS counties (
     county_name TEXT,
     state_name TEXT,
     state_fips TEXT,
-    region TEXT
+    region TEXT,
+    subregion TEXT
 );
 
 -- Land use categories
-CREATE TABLE IF NOT EXISTS land_use_categories (
-    category_code TEXT PRIMARY KEY, -- 'cr', 'ps', 'rg', 'fr', 'ur'
-    category_name TEXT NOT NULL,    -- 'cropland', 'pasture', etc.
+CREATE TABLE IF NOT EXISTS landuse_types (
+    landuse_type_code TEXT PRIMARY KEY, -- 'cr', 'ps', 'rg', 'fr', 'ur'
+    landuse_type_name TEXT NOT NULL,    -- 'cropland', 'pasture', etc.
     description TEXT
 );
 
 -- Land use transition data (main data table)
-CREATE TABLE IF NOT EXISTS land_use_transitions (
+CREATE TABLE IF NOT EXISTS landuse_change (
     transition_id INTEGER PRIMARY KEY,
     scenario_id INTEGER NOT NULL,
-    time_step_id INTEGER NOT NULL,
+    decade_id INTEGER NOT NULL,
     fips_code TEXT NOT NULL,
-    from_land_use TEXT NOT NULL,
-    to_land_use TEXT NOT NULL,
+    from_landuse TEXT NOT NULL,
+    to_landuse TEXT NOT NULL,
     area_hundreds_acres DOUBLE NOT NULL,
     FOREIGN KEY (scenario_id) REFERENCES scenarios(scenario_id),
-    FOREIGN KEY (time_step_id) REFERENCES time_steps(time_step_id),
+    FOREIGN KEY (decade_id) REFERENCES decades(decade_id),
     FOREIGN KEY (fips_code) REFERENCES counties(fips_code),
-    FOREIGN KEY (from_land_use) REFERENCES land_use_categories(category_code),
-    FOREIGN KEY (to_land_use) REFERENCES land_use_categories(category_code)
+    FOREIGN KEY (from_landuse) REFERENCES landuse_types(landuse_type_code),
+    FOREIGN KEY (to_landuse) REFERENCES landuse_types(landuse_type_code)
 );
 
 -- Add basic indexes (additional ones will be created by SchemaManager)
-CREATE INDEX IF NOT EXISTS idx_land_use_transitions ON land_use_transitions (scenario_id, time_step_id, fips_code);
-CREATE INDEX IF NOT EXISTS idx_from_land_use ON land_use_transitions (from_land_use);
-CREATE INDEX IF NOT EXISTS idx_to_land_use ON land_use_transitions (to_land_use);
+CREATE INDEX IF NOT EXISTS idx_landuse_change ON landuse_change (scenario_id, decade_id, fips_code);
+CREATE INDEX IF NOT EXISTS idx_from_landuse ON landuse_change (from_landuse);
+CREATE INDEX IF NOT EXISTS idx_to_landuse ON landuse_change (to_landuse);
 
 -- Insert land use categories
-INSERT OR IGNORE INTO land_use_categories (category_code, category_name, description) VALUES
+INSERT OR IGNORE INTO landuse_types (landuse_type_code, landuse_type_name, description) VALUES
     ('cr', 'Cropland', 'Agricultural cropland'),
     ('ps', 'Pasture', 'Pasture land'),
     ('rg', 'Rangeland', 'Rangeland'),
     ('fr', 'Forest', 'Forest land'),
-    ('ur', 'Urban', 'Urban developed land'),
-    ('t1', 'Total', 'Total area at starting year'),
-    ('t2', 'Total', 'Total area at ending year'); 
+    ('ur', 'Urban', 'Urban developed land'); 
