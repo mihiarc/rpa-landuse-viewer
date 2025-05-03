@@ -171,18 +171,18 @@ def get_land_use_data_from_db():
                     s.gcm,
                     s.rcp,
                     s.ssp,
-                    t.from_land_use,
+                    t.from_landuse,
                     SUM(t.area_hundreds_acres * 100) as initial_acres
                 FROM 
-                    land_use_transitions t
+                    landuse_change t
                 JOIN 
                     scenarios s ON t.scenario_id = s.scenario_id
                 JOIN 
-                    time_steps ts ON t.time_step_id = ts.time_step_id
+                    decades ts ON t.decade_id = ts.decade_id
                 WHERE 
                     ts.start_year = 2020 AND ts.end_year = 2070
                 GROUP BY 
-                    s.scenario_name, s.gcm, s.rcp, s.ssp, t.from_land_use
+                    s.scenario_name, s.gcm, s.rcp, s.ssp, t.from_landuse
             ),
             final_areas AS (
                 SELECT 
@@ -190,31 +190,31 @@ def get_land_use_data_from_db():
                     s.gcm,
                     s.rcp,
                     s.ssp,
-                    t.to_land_use,
+                    t.to_landuse,
                     SUM(t.area_hundreds_acres * 100) as final_acres
                 FROM 
-                    land_use_transitions t
+                    landuse_change t
                 JOIN 
                     scenarios s ON t.scenario_id = s.scenario_id
                 JOIN 
-                    time_steps ts ON t.time_step_id = ts.time_step_id
+                    decades ts ON t.decade_id = ts.decade_id
                 WHERE 
                     ts.start_year = 2020 AND ts.end_year = 2070
                 GROUP BY 
-                    s.scenario_name, s.gcm, s.rcp, s.ssp, t.to_land_use
+                    s.scenario_name, s.gcm, s.rcp, s.ssp, t.to_landuse
             ),
             net_change AS (
                 SELECT 
                     i.scenario_name,
                     i.gcm,
-                    i.from_land_use as land_use,
+                    i.from_landuse as land_use,
                     CASE
-                        WHEN i.from_land_use = 'fr' THEN 'forest'
-                        WHEN i.from_land_use = 'ur' THEN 'developed'
-                        WHEN i.from_land_use = 'cr' THEN 'crop'
-                        WHEN i.from_land_use = 'ps' THEN 'pasture'
-                        WHEN i.from_land_use = 'rg' THEN 'rangeland'
-                        ELSE i.from_land_use
+                        WHEN i.from_landuse = 'fr' THEN 'forest'
+                        WHEN i.from_landuse = 'ur' THEN 'developed'
+                        WHEN i.from_landuse = 'cr' THEN 'crop'
+                        WHEN i.from_landuse = 'ps' THEN 'pasture'
+                        WHEN i.from_landuse = 'rg' THEN 'rangeland'
+                        ELSE i.from_landuse
                     END as land_use_name,
                     COALESCE(f.final_acres, 0) - COALESCE(i.initial_acres, 0) as net_change_acres
                 FROM 
@@ -222,7 +222,7 @@ def get_land_use_data_from_db():
                 LEFT JOIN 
                     final_areas f ON i.scenario_name = f.scenario_name 
                                 AND i.gcm = f.gcm 
-                                AND i.from_land_use = f.to_land_use
+                                AND i.from_landuse = f.to_landuse
             )
             SELECT 
                 scenario_name,
@@ -270,38 +270,38 @@ def get_land_use_data_from_db():
                 SELECT 
                     s.scenario_name,
                     s.gcm,
-                    t.from_land_use,
-                    t.to_land_use,
+                    t.from_landuse,
+                    t.to_landuse,
                     SUM(t.area_hundreds_acres * 100) as transition_acres
                 FROM 
-                    land_use_transitions t
+                    landuse_change t
                 JOIN 
                     scenarios s ON t.scenario_id = s.scenario_id
                 JOIN 
-                    time_steps ts ON t.time_step_id = ts.time_step_id
+                    decades ts ON t.decade_id = ts.decade_id
                 WHERE 
                     ts.start_year = 2020 AND ts.end_year = 2070
                 GROUP BY 
-                    s.scenario_name, s.gcm, t.from_land_use, t.to_land_use
+                    s.scenario_name, s.gcm, t.from_landuse, t.to_landuse
             )
             SELECT 
                 scenario_name,
                 gcm,
                 CASE
-                    WHEN from_land_use = 'fr' THEN 'forest'
-                    WHEN from_land_use = 'ur' THEN 'developed'
-                    WHEN from_land_use = 'cr' THEN 'crop'
-                    WHEN from_land_use = 'ps' THEN 'pasture'
-                    WHEN from_land_use = 'rg' THEN 'rangeland'
-                    ELSE from_land_use
+                    WHEN from_landuse = 'fr' THEN 'forest'
+                    WHEN from_landuse = 'ur' THEN 'developed'
+                    WHEN from_landuse = 'cr' THEN 'crop'
+                    WHEN from_landuse = 'ps' THEN 'pasture'
+                    WHEN from_landuse = 'rg' THEN 'rangeland'
+                    ELSE from_landuse
                 END as from_land_use_name,
                 CASE
-                    WHEN to_land_use = 'fr' THEN 'forest'
-                    WHEN to_land_use = 'ur' THEN 'developed'
-                    WHEN to_land_use = 'cr' THEN 'crop'
-                    WHEN to_land_use = 'ps' THEN 'pasture'
-                    WHEN to_land_use = 'rg' THEN 'rangeland'
-                    ELSE to_land_use
+                    WHEN to_landuse = 'fr' THEN 'forest'
+                    WHEN to_landuse = 'ur' THEN 'developed'
+                    WHEN to_landuse = 'cr' THEN 'crop'
+                    WHEN to_landuse = 'ps' THEN 'pasture'
+                    WHEN to_landuse = 'rg' THEN 'rangeland'
+                    ELSE to_landuse
                 END as to_land_use_name,
                 transition_acres,
                 CASE
@@ -851,6 +851,351 @@ class TestRPAScenarios:
         if "HM" in scenario_developed_changes and "LM" in scenario_developed_changes:
             assert scenario_developed_changes["HM"] < scenario_developed_changes["LM"], \
                 f"HM developed change ({scenario_developed_changes['HM']}) should be < LM developed change ({scenario_developed_changes['LM']})"
+
+class TestEnsembleScenarios:
+    """Test ensemble scenarios against published RPA values"""
+    
+    def test_overall_ensemble_exists(self, db_data):
+        """Test that the overall ensemble scenario exists in the database."""
+        # Check for overall ensemble in the database
+        query = "SELECT scenario_id, scenario_name FROM scenarios WHERE scenario_name = 'ensemble_overall'"
+        
+        result = DBManager.query_df(query)
+        
+        assert not result.empty, "Overall ensemble scenario not found in database"
+        print(f"Found overall ensemble scenario: {result['scenario_name'].iloc[0]} (ID: {result['scenario_id'].iloc[0]})")
+    
+    def test_overall_ensemble_mean_values(self, db_data):
+        """Test that the overall ensemble values match the published mean values."""
+        # Published mean values from RPA text (Table 4-10)
+        published_means = {
+            'forest': -12.4,  # million acres (-3.0%)
+            'developed': 50.7,  # million acres (+51.9%)
+            'crop': -21.8,  # million acres (-6.1%)
+            'pasture': -9.2,  # million acres (-7.7%)
+            'rangeland': -7.3,  # million acres (-1.8%)
+        }
+        
+        # Query the database for overall ensemble values across the full 50-year period (2020-2070)
+        query = """
+        WITH initial_areas AS (
+            SELECT 
+                t.from_landuse,
+                SUM(t.area_hundreds_acres * 100) as initial_acres
+            FROM 
+                landuse_change t
+            JOIN 
+                scenarios s ON t.scenario_id = s.scenario_id
+            JOIN 
+                decades d ON t.decade_id = d.decade_id
+            WHERE 
+                s.scenario_name = 'ensemble_overall'
+                AND d.decade_id = 1  -- Initial year (2020)
+            GROUP BY 
+                t.from_landuse
+        ),
+        final_areas AS (
+            SELECT 
+                t.to_landuse,
+                SUM(t.area_hundreds_acres * 100) as final_acres
+            FROM 
+                landuse_change t
+            JOIN 
+                scenarios s ON t.scenario_id = s.scenario_id
+            JOIN 
+                decades d ON t.decade_id = d.decade_id
+            WHERE 
+                s.scenario_name = 'ensemble_overall'
+                AND d.decade_id = 5  -- Final year (2070)
+            GROUP BY 
+                t.to_landuse
+        ),
+        net_change AS (
+            SELECT 
+                i.from_landuse as land_use,
+                CASE
+                    WHEN i.from_landuse = 'fr' THEN 'forest'
+                    WHEN i.from_landuse = 'ur' THEN 'developed'
+                    WHEN i.from_landuse = 'cr' THEN 'crop'
+                    WHEN i.from_landuse = 'ps' THEN 'pasture'
+                    WHEN i.from_landuse = 'rg' THEN 'rangeland'
+                    ELSE i.from_landuse
+                END as land_use_name,
+                COALESCE(f.final_acres, 0) - COALESCE(i.initial_acres, 0) as net_change_acres
+            FROM 
+                initial_areas i
+            LEFT JOIN 
+                final_areas f ON i.from_landuse = f.to_landuse
+        )
+        SELECT 
+            land_use_name,
+            net_change_acres / 1000000 as net_change_millions
+        FROM 
+            net_change
+        WHERE 
+            land_use_name IN ('forest', 'developed', 'crop', 'pasture', 'rangeland')
+        """
+        
+        ensemble_results = DBManager.query_df(query)
+        
+        if not ensemble_results.empty:
+            # Create a dictionary from the results
+            ensemble_values = {}
+            for _, row in ensemble_results.iterrows():
+                ensemble_values[row['land_use_name']] = row['net_change_millions']
+            
+            # Compare with published values
+            for land_use, published_value in published_means.items():
+                if land_use in ensemble_values:
+                    db_value = ensemble_values[land_use]
+                    
+                    # Use a wider tolerance (10%) since these are aggregate values
+                    assert db_value == pytest.approx(published_value, rel=0.10), \
+                        f"Overall ensemble {land_use} mismatch: DB={db_value}, Published={published_value}"
+                    print(f"✓ Ensemble {land_use}: DB={db_value:.1f}M acres, Published={published_value}M acres")
+    
+    def test_integrated_ensembles_exist(self, db_data):
+        """Test that all four integrated RPA scenario ensembles exist in the database."""
+        # Check for integrated ensembles in the database
+        query = """
+        SELECT 
+            scenario_id, scenario_name 
+        FROM scenarios 
+        WHERE scenario_name IN ('ensemble_LM', 'ensemble_HL', 'ensemble_HM', 'ensemble_HH')
+        """
+        
+        result = DBManager.query_df(query)
+        
+        assert len(result) == 4, f"Expected 4 integrated ensembles, found {len(result)}"
+        
+        # Check each ensemble exists
+        ensembles = result['scenario_name'].tolist()
+        for ensemble in ['ensemble_LM', 'ensemble_HL', 'ensemble_HM', 'ensemble_HH']:
+            assert ensemble in ensembles, f"Ensemble '{ensemble}' not found in database"
+            print(f"Found integrated ensemble: {ensemble}")
+    
+    def test_integrated_ensembles_forest_values(self, db_data):
+        """Test that the integrated scenario ensemble forest values match published RPA values."""
+        # Published forest values for each integrated scenario with Middle climate projection
+        published_forest_values = {
+            'LM': -12.6,  # million acres (-3.1%)
+            'HM': -12.1,  # million acres (-3.0%)
+            'HL': -11.0,  # million acres (-2.7%)
+            'HH': -14.5,  # million acres (-3.5%)
+        }
+        
+        # Query the database for forest values in each integrated ensemble
+        for scenario in ['LM', 'HL', 'HM', 'HH']:
+            query = f"""
+            WITH initial_areas AS (
+                SELECT 
+                    t.from_landuse,
+                    SUM(t.area_hundreds_acres * 100) as initial_acres
+                FROM 
+                    landuse_change t
+                JOIN 
+                    scenarios s ON t.scenario_id = s.scenario_id
+                JOIN 
+                    decades d ON t.decade_id = d.decade_id
+                WHERE 
+                    s.scenario_name = 'ensemble_{scenario}'
+                    AND d.decade_id = 1
+                    AND t.from_landuse = 'fr'
+                GROUP BY 
+                    t.from_landuse
+            ),
+            final_areas AS (
+                SELECT 
+                    t.to_landuse,
+                    SUM(t.area_hundreds_acres * 100) as final_acres
+                FROM 
+                    landuse_change t
+                JOIN 
+                    scenarios s ON t.scenario_id = s.scenario_id
+                JOIN 
+                    decades d ON t.decade_id = d.decade_id
+                WHERE 
+                    s.scenario_name = 'ensemble_{scenario}'
+                    AND d.decade_id = 5  -- Final year (2070)
+                    AND t.to_landuse = 'fr'
+                GROUP BY 
+                    t.to_landuse
+            )
+            SELECT 
+                COALESCE(f.final_acres, 0) - COALESCE(i.initial_acres, 0) as net_change_acres
+            FROM 
+                initial_areas i
+            LEFT JOIN 
+                final_areas f ON i.from_landuse = f.to_landuse
+            """
+            
+            result = DBManager.query_df(query)
+            
+            if not result.empty:
+                db_value = result['net_change_acres'].iloc[0] / 1000000  # Convert to millions
+                published_value = published_forest_values[scenario]
+                
+                # Use a relatively wide tolerance (10%) since these are ensemble averages
+                assert db_value == pytest.approx(published_value, rel=0.10), \
+                    f"Ensemble_{scenario} forest change mismatch: DB={db_value}M, Published={published_value}M"
+                print(f"Ensemble_{scenario} forest: DB={db_value:.1f}M acres, Published={published_value}M acres")
+    
+    def test_forest_to_developed_transitions(self, db_data):
+        """Test forest to developed transitions in ensemble scenarios match published values."""
+        # Published range from forest to developed: 19.8M acres (HL-hot) to 26.0M acres (HH-least warm)
+        # Test that overall ensemble value falls within this range
+        
+        query = """
+        WITH forest_to_developed AS (
+            SELECT 
+                SUM(t.area_hundreds_acres * 100) as transition_acres
+            FROM 
+                landuse_change t
+            JOIN 
+                scenarios s ON t.scenario_id = s.scenario_id
+            JOIN 
+                decades d ON t.decade_id = d.decade_id
+            WHERE 
+                s.scenario_name = 'ensemble_overall'
+                AND d.decade_id BETWEEN 1 AND 5  -- 2020-2070
+                AND t.from_landuse = 'fr'
+                AND t.to_landuse = 'ur'
+        )
+        SELECT 
+            transition_acres / 1000000 as transition_acres_millions
+        FROM 
+            forest_to_developed
+        """
+        
+        result = DBManager.query_df(query)
+        
+        if not result.empty:
+            db_value = result['transition_acres_millions'].iloc[0]
+            # Check if value falls within expected range from published values
+            # Published forest to developed: 19.8M acres (HL-hot) to 26.0M acres (HH-least warm)
+            min_expected = 19.8
+            max_expected = 26.0
+            
+            assert min_expected <= db_value <= max_expected, \
+                f"Forest to developed transition outside expected range: DB={db_value}M, Expected range: {min_expected}M-{max_expected}M"
+            print(f"✓ Overall ensemble forest to developed: {db_value:.1f}M acres (within expected range {min_expected}M-{max_expected}M)")
+            
+    def test_ensemble_vs_raw_scenario_means(self, db_data):
+        """Test that ensemble values are close to the mean of individual scenarios they represent."""
+        # This test calculates the mean of individual scenarios and compares to the ensemble value
+        
+        # First, get overall ensemble forest change
+        ensemble_query = """
+        WITH initial_areas AS (
+            SELECT 
+                t.from_landuse,
+                SUM(t.area_hundreds_acres * 100) as initial_acres
+            FROM 
+                landuse_change t
+            JOIN 
+                scenarios s ON t.scenario_id = s.scenario_id
+            JOIN 
+                decades d ON t.decade_id = d.decade_id
+            WHERE 
+                s.scenario_name = 'ensemble_overall'
+                AND d.decade_id = 1
+                AND t.from_landuse = 'fr'
+            GROUP BY 
+                t.from_landuse
+        ),
+        final_areas AS (
+            SELECT 
+                t.to_landuse,
+                SUM(t.area_hundreds_acres * 100) as final_acres
+            FROM 
+                landuse_change t
+            JOIN 
+                scenarios s ON t.scenario_id = s.scenario_id
+            JOIN 
+                decades d ON t.decade_id = d.decade_id
+            WHERE 
+                s.scenario_name = 'ensemble_overall'
+                AND d.decade_id = 5  -- Final year (2070)
+                AND t.to_landuse = 'fr'
+            GROUP BY 
+                t.to_landuse
+        )
+        SELECT 
+            (COALESCE(f.final_acres, 0) - COALESCE(i.initial_acres, 0)) / 1000000 as ensemble_net_change
+        FROM 
+            initial_areas i
+            LEFT JOIN final_areas f ON i.from_landuse = f.to_landuse
+        """
+        
+        ensemble_result = DBManager.query_df(ensemble_query)
+        
+        if not ensemble_result.empty:
+            ensemble_value = ensemble_result['ensemble_net_change'].iloc[0]
+            
+            # Now get the mean of individual scenarios
+            individual_query = """
+            WITH scenario_changes AS (
+                WITH initial_areas AS (
+                    SELECT 
+                        s.scenario_id,
+                        s.scenario_name,
+                        t.from_landuse,
+                        SUM(t.area_hundreds_acres * 100) as initial_acres
+                    FROM 
+                        landuse_change t
+                    JOIN 
+                        scenarios s ON t.scenario_id = s.scenario_id
+                    JOIN 
+                        decades d ON t.decade_id = d.decade_id
+                    WHERE 
+                        s.scenario_name NOT LIKE 'ensemble%'
+                        AND d.decade_id = 1
+                        AND t.from_landuse = 'fr'
+                    GROUP BY 
+                        s.scenario_id, s.scenario_name, t.from_landuse
+                ),
+                final_areas AS (
+                    SELECT 
+                        s.scenario_id,
+                        s.scenario_name,
+                        t.to_landuse,
+                        SUM(t.area_hundreds_acres * 100) as final_acres
+                    FROM 
+                        landuse_change t
+                    JOIN 
+                        scenarios s ON t.scenario_id = s.scenario_id
+                    JOIN 
+                        decades d ON t.decade_id = d.decade_id
+                    WHERE 
+                        s.scenario_name NOT LIKE 'ensemble%'
+                        AND d.decade_id = 5  -- Final year (2070)
+                        AND t.to_landuse = 'fr'
+                    GROUP BY 
+                        s.scenario_id, s.scenario_name, t.to_landuse
+                )
+                SELECT 
+                    i.scenario_id,
+                    i.scenario_name,
+                    (COALESCE(f.final_acres, 0) - COALESCE(i.initial_acres, 0)) / 1000000 as net_change
+                FROM 
+                    initial_areas i
+                LEFT JOIN 
+                    final_areas f ON i.scenario_id = f.scenario_id AND i.from_landuse = f.to_landuse
+            )
+            SELECT AVG(net_change) as mean_scenario_change
+            FROM scenario_changes
+            """
+            
+            individual_result = DBManager.query_df(individual_query)
+            
+            if not individual_result.empty:
+                individual_mean = individual_result['mean_scenario_change'].iloc[0]
+                
+                # They should be close (within 5%)
+                assert ensemble_value == pytest.approx(individual_mean, rel=0.05), \
+                    f"Ensemble value ({ensemble_value:.2f}M) differs from mean of individual scenarios ({individual_mean:.2f}M)"
+                print(f"Overall ensemble forest change: {ensemble_value:.2f}M acres")
+                print(f"Mean of individual scenarios: {individual_mean:.2f}M acres")
 
 if __name__ == "__main__":
     # If run directly, print the parsed data for inspection
