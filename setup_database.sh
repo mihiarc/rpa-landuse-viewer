@@ -119,17 +119,8 @@ else:
 # 3. Remove t1 and t2 from land_use_categories table
 print('\nRemoving t1 and t2 from land_use_categories table...')
 try:
-    # First, check if there are any remaining references to t1/t2 in transitions
-    ref_check = conn.execute(\"\"\"
-        SELECT COUNT(*) FROM land_use_transitions 
-        WHERE from_land_use IN ('t1', 't2') OR to_land_use IN ('t1', 't2')
-    \"\"\").fetchone()[0]
-    
-    if ref_check == 0:
-        conn.execute(\"DELETE FROM land_use_categories WHERE category_code IN ('t1', 't2')\")
-        print('Removed t1 and t2 from land_use_categories successfully.')
-    else:
-        print(f'Warning: Could not remove t1/t2 from categories - {ref_check} references still exist')
+    conn.execute("DELETE FROM land_use_categories WHERE category_code IN ('t1', 't2')")
+    print('Removed t1 and t2 from land_use_categories successfully.')
 except Exception as e:
     print(f'Error removing t1/t2 from categories: {e}')
 
