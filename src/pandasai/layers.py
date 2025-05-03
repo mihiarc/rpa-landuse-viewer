@@ -6,7 +6,7 @@ import os
 import duckdb
 import pandas as pd
 from pandasai import SmartDataframe
-from pandasai.llm import OpenAI
+from pandasai.llm import BambooLLM
 from dotenv import load_dotenv
 
 
@@ -138,10 +138,9 @@ def get_llm():
     """Get the LLM with the API key."""
     api_key = get_api_key()
     
-    # Use OpenAI with the provided API key
-    # Note: If using non-OpenAI keys (like Anthropic), you might need to modify
-    # your .env file to use a standard OpenAI format key instead
-    return OpenAI(api_token=api_key)
+    # Use BambooLLM with the provided API key
+    # Note: PandasAI 3.0.0b17 uses BambooLLM instead of OpenAI directly
+    return BambooLLM(api_key=api_key)
 
 
 def create_semantic_layers(parquet_dir="land_use_parquet", org_path="rpa-landuse"):
