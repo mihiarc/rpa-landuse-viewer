@@ -6,8 +6,77 @@ This repository contains tools for processing and analyzing the USDA Forest Serv
 
 The data represents gross land-use changes projected at the county level, based on an empirical econometric model of observed land-use transitions from 2001-2012 using National Resources Inventory (NRI) data. The projections include:
 
+### Land Use Model
+
+The land use projections were generated using a model that integrates climate, economic, and land quality factors:
+
+```mermaid
+graph LR
+    %% Data nodes (yellow ovals)
+    PRISM["PRISM Historical<br/>Climate"]:::data
+    NetReturns["Net Returns to Land<br/>Production"]:::data
+    SoilQuality["Soil Quality (NRI)"]:::data
+    MACA["MACA Climate<br/>Projections"]:::data
+    SSP["Downscaled SSP<br/>Projections"]:::data
+    
+    %% Ricardian Climate Functions box
+    subgraph RCF["Ricardian Climate Functions"]
+        Forest["Forest"]:::process
+        Crop["Crop"]:::process
+        Urban["Urban"]:::process
+    end
+    
+    %% Process nodes (gray rectangles)
+    LandUseModel["Land-use<br/>Change Model"]:::process
+    
+    %% Output nodes (red hexagons)
+    ClimateParam["Climate<br/>Parameterized<br/>Net Returns"]:::output
+    Transition["Transition<br/>Probability as<br/>Function of<br/>Climate / SSP"]:::output
+    SimulatedChange["Simulated Land<br/>Area Change<br/>(Gross & Net)"]:::output
+    
+    %% Simplified connections to the RCF box
+    PRISM --> RCF
+    NetReturns --> RCF
+    SoilQuality --> RCF
+    
+    %% Connections from RCF components to other nodes
+    Forest --> ClimateParam
+    Crop --> ClimateParam
+    Urban --> ClimateParam
+    
+    ClimateParam --> LandUseModel
+    LandUseModel --> Transition
+    MACA --> Transition
+    SSP --> Transition
+    
+    Transition --> SimulatedChange
+    
+    %% Styling
+    classDef data fill:#ffecb3,stroke:#333,stroke-width:2px
+    classDef process fill:#e0e0e0,stroke:#333,stroke-width:2px
+    classDef output fill:#ffcdd2,stroke:#333,stroke-width:2px,shape:hexagon
+    style RCF fill:#fff5e6,stroke:#be9b3e,stroke-width:3px
+```
+
+This diagram shows how the RPA Land Use Model integrates various inputs:
+- Historical climate data (PRISM)
+- Economic factors (Net Returns to Land Production)
+- Land characteristics (Soil Quality from NRI)
+- Future climate projections (MACA)
+- Future socioeconomic projections (SSPs)
+
+These inputs flow through Ricardian Climate Functions for different land types, producing climate-parameterized net returns that feed into the land-use change model. The model generates transition probabilities as functions of climate and socioeconomic factors, ultimately producing the simulated land area changes found in this dataset.
+
 ### Scenarios
-The dataset includes 20 unique scenarios combining:
+The dataset includes 20 unique scenarios that are combinations of climate models and socioeconomic pathways. These scenarios are based on four integrated RPA scenarios that combine climate projections (Representative Concentration Pathways or RCPs) with socioeconomic projections (Shared Socioeconomic Pathways or SSPs):
+
+- **LM**: Lower warming-moderate U.S. growth (RCP4.5-SSP1)
+- **HL**: High warming-low U.S. growth (RCP8.5-SSP3)
+- **HM**: High warming-moderate U.S. growth (RCP8.5-SSP2)
+- **HH**: High warming-high U.S. growth (RCP8.5-SSP5)
+
+Each integrated scenario is run with five different climate models to capture the range of future climate projections:
+
 - Climate Models (GCM):
   - CNRM_CM5 ("wet" climate model)
   - HadGEM2_ES365 ("hot" climate model)
