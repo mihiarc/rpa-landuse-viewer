@@ -26,7 +26,7 @@ if [ -d ".venv" ]; then
     read -p "Rebuild environment from scratch? (y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "${YELLOW}Removing existing environment...${NC}"
+        echo -e "${YELLOW}Removing existing environment...${NC}" 
         rm -rf .venv
         REBUILD_MODE=true
     else
