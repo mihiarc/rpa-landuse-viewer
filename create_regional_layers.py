@@ -42,7 +42,7 @@ def parse_args():
     )
     parser.add_argument(
         "--export-dir", 
-        default="data/exports",
+        default="semantic_layers/regional_analysis",
         help="Directory where to export Parquet files"
     )
     parser.add_argument(

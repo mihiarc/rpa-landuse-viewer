@@ -42,7 +42,7 @@ class AnalysisRepository(BaseRepository):
             params.append(scenario_id)
         
         if start_year and end_year:
-            filter_parts.append("time_step_id IN (SELECT time_step_id FROM time_steps WHERE start_year >= ? AND end_year <= ?)")
+            filter_parts.append("decade_id IN (SELECT decade_id FROM decades WHERE start_year >= ? AND end_year <= ?)")
             params.extend([start_year, end_year])
         
         # Create WHERE clause
@@ -54,19 +54,19 @@ class AnalysisRepository(BaseRepository):
         query = f"""
         WITH from_sums AS (
             SELECT 
-                from_land_use AS land_use_type,
-                -SUM(acres) AS net_change
-            FROM land_use_transitions 
+                from_landuse AS land_use_type,
+                -SUM(area_hundreds_acres * 100) AS net_change
+            FROM landuse_change 
             {filter_sql}
-            GROUP BY from_land_use
+            GROUP BY from_landuse
         ),
         to_sums AS (
             SELECT 
-                to_land_use AS land_use_type,
-                SUM(acres) AS net_change
-            FROM land_use_transitions 
+                to_landuse AS land_use_type,
+                SUM(area_hundreds_acres * 100) AS net_change
+            FROM landuse_change 
             {filter_sql}
-            GROUP BY to_land_use
+            GROUP BY to_landuse
         ),
         combined AS (
             SELECT * FROM from_sums
@@ -111,26 +111,26 @@ class AnalysisRepository(BaseRepository):
         query = f"""
         WITH period_changes AS (
             SELECT 
-                ts.start_year,
-                ts.end_year,
-                lut.from_land_use AS land_use_type,
-                -SUM(lut.acres) AS acres_lost
-            FROM land_use_transitions lut
-            JOIN time_steps ts ON lut.time_step_id = ts.time_step_id
+                d.start_year,
+                d.end_year,
+                lut.from_landuse AS land_use_type,
+                -SUM(lut.area_hundreds_acres * 100) AS acres_lost
+            FROM landuse_change lut
+            JOIN decades d ON lut.decade_id = d.decade_id
             {scenario_filter}
-            GROUP BY ts.start_year, ts.end_year, lut.from_land_use
+            GROUP BY d.start_year, d.end_year, lut.from_landuse
             
             UNION ALL
             
             SELECT 
-                ts.start_year,
-                ts.end_year,
-                lut.to_land_use AS land_use_type,
-                SUM(lut.acres) AS acres_gained
-            FROM land_use_transitions lut
-            JOIN time_steps ts ON lut.time_step_id = ts.time_step_id
+                d.start_year,
+                d.end_year,
+                lut.to_landuse AS land_use_type,
+                SUM(lut.area_hundreds_acres * 100) AS acres_gained
+            FROM landuse_change lut
+            JOIN decades d ON lut.decade_id = d.decade_id
             {scenario_filter}
-            GROUP BY ts.start_year, ts.end_year, lut.to_land_use
+            GROUP BY d.start_year, d.end_year, lut.to_landuse
         ),
         net_changes AS (
             SELECT
@@ -193,24 +193,24 @@ class AnalysisRepository(BaseRepository):
         query = f"""
         WITH period_changes AS (
             SELECT 
-                ts.start_year,
-                ts.end_year,
-                lut.from_land_use AS land_use_type,
-                -SUM(lut.acres) AS net_change
-            FROM land_use_transitions lut
-            JOIN time_steps ts ON lut.time_step_id = ts.time_step_id
-            GROUP BY ts.start_year, ts.end_year, lut.from_land_use
+                d.start_year,
+                d.end_year,
+                lut.from_landuse AS land_use_type,
+                -SUM(lut.area_hundreds_acres * 100) AS net_change
+            FROM landuse_change lut
+            JOIN decades d ON lut.decade_id = d.decade_id
+            GROUP BY d.start_year, d.end_year, lut.from_landuse
             
             UNION ALL
             
             SELECT 
-                ts.start_year,
-                ts.end_year,
-                lut.to_land_use AS land_use_type,
-                SUM(lut.acres) AS net_change
-            FROM land_use_transitions lut
-            JOIN time_steps ts ON lut.time_step_id = ts.time_step_id
-            GROUP BY ts.start_year, ts.end_year, lut.to_land_use
+                d.start_year,
+                d.end_year,
+                lut.to_landuse AS land_use_type,
+                SUM(lut.area_hundreds_acres * 100) AS net_change
+            FROM landuse_change lut
+            JOIN decades d ON lut.decade_id = d.decade_id
+            GROUP BY d.start_year, d.end_year, lut.to_landuse
         ),
         net_changes AS (
             SELECT
@@ -266,8 +266,8 @@ class AnalysisRepository(BaseRepository):
         """
         # Find time periods that match the years
         time_periods_query = """
-        SELECT time_step_id 
-        FROM time_steps 
+        SELECT decade_id 
+        FROM decades 
         WHERE NOT (end_year <= ? OR start_year >= ?)
         ORDER BY start_year
         """
@@ -277,36 +277,36 @@ class AnalysisRepository(BaseRepository):
         if time_periods_df.empty:
             # Fall back to closest period
             closest_query = """
-            SELECT time_step_id
-            FROM time_steps
+            SELECT decade_id
+            FROM decades
             ORDER BY ABS(? - start_year) + ABS(? - end_year)
             LIMIT 1
             """
             closest_df = cls.query_to_df(closest_query, [start_year, end_year])
             
             if not closest_df.empty:
-                time_step_ids = closest_df['time_step_id'].tolist()
+                decade_ids = closest_df['decade_id'].tolist()
             else:
                 logger.warning("No matching time periods found")
                 return pd.DataFrame()
         else:
-            time_step_ids = time_periods_df['time_step_id'].tolist()
+            decade_ids = time_periods_df['decade_id'].tolist()
         
-        # Build query with placeholders for time_step_ids
-        time_placeholders = ','.join(['?'] * len(time_step_ids))
+        # Build query with placeholders for decade_ids
+        time_placeholders = ','.join(['?'] * len(decade_ids))
         
         query = f"""
         SELECT 
-            from_land_use,
-            to_land_use,
-            SUM(acres) as acres_changed
+            from_landuse,
+            to_landuse,
+            SUM(area_hundreds_acres * 100) as acres_changed
         FROM 
-            land_use_transitions
+            landuse_change
         WHERE 
-            time_step_id IN ({time_placeholders})
+            decade_id IN ({time_placeholders})
         """
         
-        params = time_step_ids.copy()
+        params = decade_ids.copy()
         
         if scenario_id:
             query += " AND scenario_id = ?"
@@ -314,7 +314,7 @@ class AnalysisRepository(BaseRepository):
             
         query += """
         GROUP BY 
-            from_land_use, to_land_use
+            from_landuse, to_landuse
         ORDER BY 
             acres_changed DESC
         LIMIT ?
@@ -361,8 +361,8 @@ class AnalysisRepository(BaseRepository):
         
         # Find matching time periods
         time_periods_query = """
-        SELECT time_step_id 
-        FROM time_steps 
+        SELECT decade_id 
+        FROM decades 
         WHERE NOT (end_year <= ? OR start_year >= ?)
         ORDER BY start_year
         """
@@ -373,10 +373,10 @@ class AnalysisRepository(BaseRepository):
             logger.warning("No matching time periods found")
             return pd.DataFrame()
             
-        time_step_ids = time_periods_df['time_step_id'].tolist()
+        decade_ids = time_periods_df['decade_id'].tolist()
         
         # Build query for each scenario
-        time_placeholders = ','.join(['?'] * len(time_step_ids))
+        time_placeholders = ','.join(['?'] * len(decade_ids))
         
         # Complex query to compare net changes for the specific land use type
         query = f"""
@@ -384,67 +384,67 @@ class AnalysisRepository(BaseRepository):
             -- From changes (losses)
             SELECT 
                 'from' as direction,
-                from_land_use as land_use,
-                to_land_use as conversion,
-                -SUM(acres) as acres_changed
+                from_landuse as land_use,
+                to_landuse as conversion,
+                -SUM(area_hundreds_acres * 100) as acres_changed
             FROM 
-                land_use_transitions
+                landuse_change
             WHERE 
                 scenario_id = ? AND
-                time_step_id IN ({time_placeholders}) AND
-                from_land_use = ?
+                decade_id IN ({time_placeholders}) AND
+                from_landuse = ?
             GROUP BY 
-                from_land_use, to_land_use
+                from_landuse, to_landuse
                 
             UNION ALL
             
             -- To changes (gains)
             SELECT 
                 'to' as direction,
-                to_land_use as land_use,
-                from_land_use as conversion,
-                SUM(acres) as acres_changed
+                to_landuse as land_use,
+                from_landuse as conversion,
+                SUM(area_hundreds_acres * 100) as acres_changed
             FROM 
-                land_use_transitions
+                landuse_change
             WHERE 
                 scenario_id = ? AND
-                time_step_id IN ({time_placeholders}) AND
-                to_land_use = ?
+                decade_id IN ({time_placeholders}) AND
+                to_landuse = ?
             GROUP BY 
-                to_land_use, from_land_use
+                to_landuse, from_landuse
         ),
         scenario2_changes AS (
             -- From changes (losses)
             SELECT 
                 'from' as direction,
-                from_land_use as land_use,
-                to_land_use as conversion,
-                -SUM(acres) as acres_changed
+                from_landuse as land_use,
+                to_landuse as conversion,
+                -SUM(area_hundreds_acres * 100) as acres_changed
             FROM 
-                land_use_transitions
+                landuse_change
             WHERE 
                 scenario_id = ? AND
-                time_step_id IN ({time_placeholders}) AND
-                from_land_use = ?
+                decade_id IN ({time_placeholders}) AND
+                from_landuse = ?
             GROUP BY 
-                from_land_use, to_land_use
+                from_landuse, to_landuse
                 
             UNION ALL
             
             -- To changes (gains)
             SELECT 
                 'to' as direction,
-                to_land_use as land_use,
-                from_land_use as conversion,
-                SUM(acres) as acres_changed
+                to_landuse as land_use,
+                from_landuse as conversion,
+                SUM(area_hundreds_acres * 100) as acres_changed
             FROM 
-                land_use_transitions
+                landuse_change
             WHERE 
                 scenario_id = ? AND
-                time_step_id IN ({time_placeholders}) AND
-                to_land_use = ?
+                decade_id IN ({time_placeholders}) AND
+                to_landuse = ?
             GROUP BY 
-                to_land_use, from_land_use
+                to_landuse, from_landuse
         )
         SELECT
             s1.direction,
@@ -469,19 +469,19 @@ class AnalysisRepository(BaseRepository):
         params = [
             # Scenario 1 params - from
             scenario1_id,
-            *time_step_ids,
+            *decade_ids,
             land_use_type,
             # Scenario 1 params - to
             scenario1_id,
-            *time_step_ids,
+            *decade_ids,
             land_use_type,
             # Scenario 2 params - from
             scenario2_id,
-            *time_step_ids,
+            *decade_ids,
             land_use_type,
             # Scenario 2 params - to
             scenario2_id,
-            *time_step_ids,
+            *decade_ids,
             land_use_type
         ]
         

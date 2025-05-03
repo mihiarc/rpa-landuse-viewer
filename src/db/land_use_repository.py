@@ -47,11 +47,11 @@ class LandUseRepository(BaseRepository):
         """
         query = """
         SELECT 
-            time_step_id,
+            decade_id as time_step_id,
             start_year,
             end_year
         FROM 
-            time_steps
+            decades
         ORDER BY 
             start_year
         """
@@ -85,9 +85,9 @@ class LandUseRepository(BaseRepository):
             List of unique land use types
         """
         query = """
-        SELECT DISTINCT from_land_use as land_use_type FROM land_use_transitions
+        SELECT DISTINCT from_landuse as land_use_type FROM landuse_change
         UNION
-        SELECT DISTINCT to_land_use as land_use_type FROM land_use_transitions
+        SELECT DISTINCT to_landuse as land_use_type FROM landuse_change
         ORDER BY land_use_type
         """
         df = cls.query_to_df(query)
@@ -134,9 +134,9 @@ class LandUseRepository(BaseRepository):
         """
         query = """
         SELECT 
-            time_step_id
+            decade_id as time_step_id
         FROM 
-            time_steps
+            decades
         WHERE 
             start_year = ? AND end_year = ?
         """
@@ -156,9 +156,9 @@ class LandUseRepository(BaseRepository):
         """
         query = """
         SELECT 
-            time_step_id 
+            decade_id as time_step_id 
         FROM 
-            time_steps 
+            decades 
         WHERE 
             NOT (end_year <= ? OR start_year >= ?)
         ORDER BY 
@@ -169,9 +169,9 @@ class LandUseRepository(BaseRepository):
             # Fall back to closest period
             query_closest = """
             SELECT 
-                time_step_id
+                decade_id as time_step_id
             FROM 
-                time_steps
+                decades
             ORDER BY 
                 ABS(? - start_year) + ABS(? - end_year)
             LIMIT 1
@@ -206,14 +206,14 @@ class LandUseRepository(BaseRepository):
         
         query = f"""
         SELECT 
-            t.from_land_use,
-            t.to_land_use,
-            SUM(t.acres) as acres_changed
+            t.from_landuse as from_land_use,
+            t.to_landuse as to_land_use,
+            SUM(t.area_hundreds_acres * 100) as acres_changed
         FROM 
-            land_use_transitions t
+            landuse_change t
         WHERE 
             t.scenario_id = ? 
-            AND t.time_step_id IN ({time_placeholders})
+            AND t.decade_id IN ({time_placeholders})
         """
         
         params = [scenario_id] + time_step_ids
@@ -223,12 +223,12 @@ class LandUseRepository(BaseRepository):
             params.append(fips_code)
             
         if land_use_type:
-            query += " AND t.from_land_use = ?"
+            query += " AND t.from_landuse = ?"
             params.append(land_use_type)
             
         query += """
         GROUP BY 
-            t.from_land_use, t.to_land_use
+            t.from_landuse, t.to_landuse
         ORDER BY 
             acres_changed DESC
         """

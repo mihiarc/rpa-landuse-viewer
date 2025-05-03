@@ -1,6 +1,20 @@
 #!/usr/bin/env python3
 """
 Create semantic layers for RPA landuse data using the modular PandasAI implementation.
+
+This script calls the following modules:
+- src.db.region_repository.py
+- src.db.land_use_repository.py
+- src.db.analysis_repository.py
+- query_duckdb.py
+
+The base analysis creates the following datasets:
+- land_use_parquet
+- land_use_parquet_with_geometry
+- land_use_parquet_with_geometry_and_crs
+- land_use_parquet_with_geometry_and_crs_and_bounds
+- land_use_parquet_with_geometry_and_crs_and_bounds_and_centroids
+
 """
 
 import os
@@ -20,7 +34,7 @@ def main():
     parser.add_argument(
         "--output-dir", 
         type=str, 
-        default="land_use_parquet",
+        default="semantic_layers/base_analysis",
         help="Directory to save Parquet files"
     )
     parser.add_argument(

@@ -87,9 +87,9 @@ def get_time_steps(conn):
 def get_land_use_types(conn):
     """Get all land use types."""
     query = """
-    SELECT DISTINCT from_land_use as land_use_type FROM land_use_transitions
+    SELECT DISTINCT from_landuse as land_use_type FROM landuse_change
     UNION
-    SELECT DISTINCT to_land_use as land_use_type FROM land_use_transitions
+    SELECT DISTINCT to_landuse as land_use_type FROM landuse_change
     ORDER BY land_use_type
     """
     return execute_query(conn, query)
@@ -120,16 +120,16 @@ def get_transitions(conn, scenario_id, time_step_id, fips_code=None,
     SELECT 
         c.county_name,
         c.state_name,
-        t.from_land_use,
-        t.to_land_use,
+        t.from_landuse,
+        t.to_landuse,
         t.area_hundreds_acres * 100 as acres_changed
     FROM 
-        land_use_transitions t
+        landuse_change t
     JOIN
         counties c ON t.fips_code = c.fips_code
     WHERE 
         t.scenario_id = ?
-        AND t.time_step_id = ?
+        AND t.decade_id = ?
     """
     
     params = [scenario_id, time_step_id]
@@ -139,11 +139,11 @@ def get_transitions(conn, scenario_id, time_step_id, fips_code=None,
         params.append(fips_code)
         
     if from_land_use:
-        query += " AND t.from_land_use = ?"
+        query += " AND t.from_landuse = ?"
         params.append(from_land_use)
         
     if to_land_use:
-        query += " AND t.to_land_use = ?"
+        query += " AND t.to_landuse = ?"
         params.append(to_land_use)
         
     query += """

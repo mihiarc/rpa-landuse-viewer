@@ -24,72 +24,72 @@ class RegionRepository(BaseRepository):
         SELECT 
             s.scenario_id, 
             s.scenario_name,
-            t.time_step_id,
-            ts.time_step_name,
+            t.decade_id,
+            d.decade_name,
             c.region,
-            t.from_land_use,
-            t.to_land_use,
+            t.from_landuse,
+            t.to_landuse,
             SUM(t.area_hundreds_acres) AS total_area
         FROM 
-            land_use_transitions t
+            landuse_change t
         JOIN 
             counties c ON t.fips_code = c.fips_code
         JOIN 
             scenarios s ON t.scenario_id = s.scenario_id
         JOIN 
-            time_steps ts ON t.time_step_id = ts.time_step_id
+            decades d ON t.decade_id = d.decade_id
         GROUP BY 
-            s.scenario_id, s.scenario_name, t.time_step_id, ts.time_step_name,
-            c.region, t.from_land_use, t.to_land_use
+            s.scenario_id, s.scenario_name, t.decade_id, d.decade_name,
+            c.region, t.from_landuse, t.to_landuse
         """,
         
         'subregion_transitions': """
         SELECT 
             s.scenario_id, 
             s.scenario_name,
-            t.time_step_id,
-            ts.time_step_name,
+            t.decade_id,
+            d.decade_name,
             c.region,
             c.subregion,
-            t.from_land_use,
-            t.to_land_use,
+            t.from_landuse,
+            t.to_landuse,
             SUM(t.area_hundreds_acres) AS total_area
         FROM 
-            land_use_transitions t
+            landuse_change t
         JOIN 
             counties c ON t.fips_code = c.fips_code
         JOIN 
             scenarios s ON t.scenario_id = s.scenario_id
         JOIN 
-            time_steps ts ON t.time_step_id = ts.time_step_id
+            decades d ON t.decade_id = d.decade_id
         GROUP BY 
-            s.scenario_id, s.scenario_name, t.time_step_id, ts.time_step_name,
-            c.region, c.subregion, t.from_land_use, t.to_land_use
+            s.scenario_id, s.scenario_name, t.decade_id, d.decade_name,
+            c.region, c.subregion, t.from_landuse, t.to_landuse
         """,
         
         'state_transitions': """
         SELECT 
             s.scenario_id, 
             s.scenario_name,
-            t.time_step_id,
-            ts.time_step_name,
+            t.decade_id,
+            d.decade_name,
             c.state_name,
             c.region,
             c.subregion,
-            t.from_land_use,
-            t.to_land_use,
+            t.from_landuse,
+            t.to_landuse,
             SUM(t.area_hundreds_acres) AS total_area
         FROM 
-            land_use_transitions t
+            landuse_change t
         JOIN 
             counties c ON t.fips_code = c.fips_code
         JOIN 
             scenarios s ON t.scenario_id = s.scenario_id
         JOIN 
-            time_steps ts ON t.time_step_id = ts.time_step_id
+            decades d ON t.decade_id = d.decade_id
         GROUP BY 
-            s.scenario_id, s.scenario_name, t.time_step_id, ts.time_step_name,
-            c.state_name, c.region, c.subregion, t.from_land_use, t.to_land_use
+            s.scenario_id, s.scenario_name, t.decade_id, d.decade_name,
+            c.state_name, c.region, c.subregion, t.from_landuse, t.to_landuse
         """
     }
     
@@ -358,8 +358,8 @@ class RegionRepository(BaseRepository):
                 """)
                 
                 conn.execute(f"""
-                CREATE INDEX IF NOT EXISTS idx_{table_name}_time_step 
-                ON {table_name}(time_step_id);
+                CREATE INDEX IF NOT EXISTS idx_{table_name}_time 
+                ON {table_name}(decade_id);
                 """)
                 
                 if 'region' in view_query:
@@ -465,7 +465,7 @@ class RegionRepository(BaseRepository):
     
     @classmethod
     def get_region_transitions(cls, scenario_id: Optional[int] = None, 
-                              time_step_id: Optional[int] = None,
+                              decade_id: Optional[int] = None,
                               region: Optional[str] = None,
                               use_materialized: bool = True) -> pd.DataFrame:
         """
@@ -473,7 +473,7 @@ class RegionRepository(BaseRepository):
         
         Args:
             scenario_id: Optional filter by scenario
-            time_step_id: Optional filter by time step
+            decade_id: Optional filter by time step
             region: Optional filter by region
             use_materialized: Whether to use materialized views (much faster)
             
@@ -492,21 +492,21 @@ class RegionRepository(BaseRepository):
             query += " AND scenario_id = ?"
             params.append(scenario_id)
         
-        if time_step_id:
-            query += " AND time_step_id = ?"
-            params.append(time_step_id)
+        if decade_id:
+            query += " AND decade_id = ?"
+            params.append(decade_id)
             
         if region:
             query += " AND region = ?"
             params.append(region)
             
-        query += " ORDER BY region, from_land_use, to_land_use"
+        query += " ORDER BY region, from_landuse, to_landuse"
         
         return cls.query_to_df(query, params)
     
     @classmethod
     def get_subregion_transitions(cls, scenario_id: Optional[int] = None, 
-                                 time_step_id: Optional[int] = None,
+                                 decade_id: Optional[int] = None,
                                  region: Optional[str] = None, 
                                  subregion: Optional[str] = None,
                                  use_materialized: bool = True) -> pd.DataFrame:
@@ -515,7 +515,7 @@ class RegionRepository(BaseRepository):
         
         Args:
             scenario_id: Optional filter by scenario
-            time_step_id: Optional filter by time step
+            decade_id: Optional filter by time step
             region: Optional filter by region
             subregion: Optional filter by subregion
             use_materialized: Whether to use materialized views (much faster)
@@ -535,9 +535,9 @@ class RegionRepository(BaseRepository):
             query += " AND scenario_id = ?"
             params.append(scenario_id)
         
-        if time_step_id:
-            query += " AND time_step_id = ?"
-            params.append(time_step_id)
+        if decade_id:
+            query += " AND decade_id = ?"
+            params.append(decade_id)
             
         if region:
             query += " AND region = ?"
@@ -547,13 +547,13 @@ class RegionRepository(BaseRepository):
             query += " AND subregion = ?"
             params.append(subregion)
             
-        query += " ORDER BY region, subregion, from_land_use, to_land_use"
+        query += " ORDER BY region, subregion, from_landuse, to_landuse"
         
         return cls.query_to_df(query, params)
     
     @classmethod
     def get_state_transitions(cls, scenario_id: Optional[int] = None, 
-                             time_step_id: Optional[int] = None,
+                             decade_id: Optional[int] = None,
                              state_name: Optional[str] = None,
                              region: Optional[str] = None, 
                              subregion: Optional[str] = None,
@@ -563,7 +563,7 @@ class RegionRepository(BaseRepository):
         
         Args:
             scenario_id: Optional filter by scenario
-            time_step_id: Optional filter by time step
+            decade_id: Optional filter by time step
             state_name: Optional filter by state
             region: Optional filter by region
             subregion: Optional filter by subregion
@@ -584,9 +584,9 @@ class RegionRepository(BaseRepository):
             query += " AND scenario_id = ?"
             params.append(scenario_id)
         
-        if time_step_id:
-            query += " AND time_step_id = ?"
-            params.append(time_step_id)
+        if decade_id:
+            query += " AND decade_id = ?"
+            params.append(decade_id)
             
         if state_name:
             query += " AND state_name = ?"
@@ -600,19 +600,19 @@ class RegionRepository(BaseRepository):
             query += " AND subregion = ?"
             params.append(subregion)
             
-        query += " ORDER BY state_name, from_land_use, to_land_use"
+        query += " ORDER BY state_name, from_landuse, to_landuse"
         
         return cls.query_to_df(query, params)
     
     @classmethod
     def get_region_totals(cls, scenario_id: Optional[int] = None, 
-                         time_step_id: Optional[int] = None) -> pd.DataFrame:
+                         decade_id: Optional[int] = None) -> pd.DataFrame:
         """
         Get total area by region, summarizing across all land use types.
         
         Args:
             scenario_id: Optional filter by scenario
-            time_step_id: Optional filter by time step
+            decade_id: Optional filter by time step
             
         Returns:
             DataFrame with region-level totals
@@ -621,8 +621,8 @@ class RegionRepository(BaseRepository):
         SELECT 
             scenario_id,
             scenario_name,
-            time_step_id,
-            time_step_name,
+            decade_id,
+            decade_name,
             region,
             SUM(total_area) as total_area
         FROM 
@@ -635,13 +635,13 @@ class RegionRepository(BaseRepository):
             query += " AND scenario_id = ?"
             params.append(scenario_id)
         
-        if time_step_id:
-            query += " AND time_step_id = ?"
-            params.append(time_step_id)
+        if decade_id:
+            query += " AND decade_id = ?"
+            params.append(decade_id)
             
         query += """
         GROUP BY 
-            scenario_id, scenario_name, time_step_id, time_step_name, region
+            scenario_id, scenario_name, decade_id, decade_name, region
         ORDER BY 
             region
         """
@@ -693,8 +693,8 @@ class RegionRepository(BaseRepository):
                     """)
                     
                     conn.execute(f"""
-                    CREATE INDEX IF NOT EXISTS idx_{table_name}_time_step 
-                    ON {table_name}(time_step_id)
+                    CREATE INDEX IF NOT EXISTS idx_{table_name}_time 
+                    ON {table_name}(decade_id)
                     """)
                     
                     if 'region' in view_query:
@@ -743,8 +743,8 @@ class RegionRepository(BaseRepository):
                     """)
                     
                     conn.execute(f"""
-                    CREATE INDEX IF NOT EXISTS idx_{table_name}_time_step 
-                    ON {table_name}(time_step_id)
+                    CREATE INDEX IF NOT EXISTS idx_{table_name}_time 
+                    ON {table_name}(decade_id)
                     """)
                     
                     if 'region' in view_query:
