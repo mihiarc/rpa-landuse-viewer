@@ -60,6 +60,7 @@ jspm_packages/
 logs/
 *.log
 log.txt
+*.pyc
 
 # Local configuration
 *.local.yaml
