@@ -63,6 +63,40 @@ conn.execute('DELETE FROM land_use_transitions WHERE time_step_id = ?', [time_st
 conn.execute('DELETE FROM time_steps WHERE start_year = 2012')
 print('Calibration period removed successfully.')
 
+# Reindex the time step IDs to maintain sequential integrity
+print('\nReindexing time step IDs...')
+conn.execute('''
+    CREATE TEMPORARY TABLE temp_time_steps AS 
+    SELECT ROW_NUMBER() OVER (ORDER BY start_year, end_year) AS new_id, 
+           time_step_id AS old_id, start_year, end_year, notes 
+    FROM time_steps
+''')
+
+# Update references in land_use_transitions
+conn.execute('''
+    UPDATE land_use_transitions
+    SET time_step_id = (
+        SELECT new_id 
+        FROM temp_time_steps 
+        WHERE old_id = land_use_transitions.time_step_id
+    )
+''')
+
+# Update the time_steps table
+conn.execute('''
+    DELETE FROM time_steps
+''')
+
+conn.execute('''
+    INSERT INTO time_steps (time_step_id, start_year, end_year, notes)
+    SELECT new_id, start_year, end_year, notes
+    FROM temp_time_steps
+''')
+
+# Drop temporary table
+conn.execute('DROP TABLE temp_time_steps')
+print('Time step IDs reindexed successfully.')
+
 # 2. Remove redundant t1 and t2 columns
 print('\nChecking for redundant columns...')
 col_check = conn.execute(\"\"\"
