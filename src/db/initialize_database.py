@@ -8,12 +8,10 @@ This script initializes a fresh database by:
 3. Running required setup scripts
 """
 
-import os
 import sys
 import logging
 import argparse
 from pathlib import Path
-from glob import glob
 
 # Add the src directory to the Python path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
