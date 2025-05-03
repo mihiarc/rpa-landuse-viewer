@@ -1,5 +1,5 @@
 """
-Simplified validator for RPA land use data.
+Data validator for RPA land use data.
 Performs basic data validation checks.
 """
 

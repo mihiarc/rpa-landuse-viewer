@@ -17,10 +17,11 @@ from tqdm import tqdm
 import pandas as pd
 
 # Add the src directory to the Python path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+src_dir = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(src_dir.parent))
 
-from src.db.database import DBManager
-from src.db.schema_manager import SchemaManager
+from .database import DBManager
+from .schema_manager import SchemaManager
 
 # Set up logging
 logging.basicConfig(

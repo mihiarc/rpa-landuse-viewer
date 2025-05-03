@@ -14,6 +14,6 @@ source .venv/bin/activate
 
 # Run the ensemble scenario creation script
 echo "Creating ensemble scenario..."
-python add_ensemble_scenario.py
+python -m src.db.add_ensemble_scenario
 
 echo "Ensemble scenario process complete!" 

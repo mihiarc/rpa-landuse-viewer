@@ -27,9 +27,8 @@ By default, the application displays an **Average (All Scenarios)** view that pr
 
 To create or update the average scenario view:
 ```bash
-# Run the average scenario creation script
-cd data/database
-./create_avg_scenario.sh
+# Run the ensemble scenario creation script
+./add_ensemble_scenario.sh
 ```
 
 ## Data Status
@@ -68,11 +67,11 @@ This dataset was developed by Mihiar, Lewis & Coulston for the USDA Forest Servi
 
 ```mermaid
 flowchart TD
-    A[Raw Data: JSON] -->|src/data_setup/converter.py| B[Processed Data: Parquet]
-    B -->|src/data_setup/validator.py| C{Validation}
-    C -->|Valid| D[DuckDB Database]
-    C -->|Invalid| E[Error Handling]
-    D -->|src/data_setup/import_landuse_data.py| F[Create Database Schema]
+    A[Raw Data: JSON] -->|src/utils/data_validator.py| B{Validation}
+    B -->|Valid| C[DuckDB Database]
+    B -->|Invalid| D[Error Handling]
+    C -->|src/db/import_landuse_data.py| E[Create Database Schema]
+    E -->|src/db/add_ensemble_scenario.py| F[Create Ensemble Scenario]
     F -->|src/db/land_use_repository.py| G[Data Queries]
     G --> H[Streamlit App]
 ```
@@ -80,12 +79,12 @@ flowchart TD
 1. Raw Data (`data/raw/`)
    - JSON format: `county_landuse_projections_RPA.json`
    - Units: Land area in hundreds of acres
-   - See _variable_descriptions.csv for data dictionary
+   - See docs/rpa_data/variable_descriptions.md for data dictionary
 
-2. Conversion to Parquet
-   - Script: `src/data_setup/converter.py`
-   - Converts JSON to columnar Parquet format for efficient processing
-   - Output: `data/processed/rpa_landuse_data.parquet`
+2. Data Validation
+   - Script: `src/utils/data_validator.py`
+   - Validates data integrity before database import
+   - Checks for required fields, data types, and value ranges
 
 3. DuckDB Database
    - Structured tables for scenarios, time steps, counties, and land use transitions
@@ -151,7 +150,7 @@ python -m src.db.initialize_database --optimize
 2. Import the data into DuckDB:
 ```bash
 # Import the land use data
-python -m src.data_setup.import_landuse_data
+python -m src.db.import_landuse_data
 ```
 
 ## Working with Existing Database

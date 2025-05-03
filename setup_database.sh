@@ -41,7 +41,7 @@ python -m src.db.initialize_database --optimize
 # Import the data if the file exists
 if [ -f "data/raw/county_landuse_projections_RPA.json" ]; then
     echo "Importing land use data (this may take a while)..."
-    python -m src.data_setup.import_landuse_data
+    python -m src.db.import_landuse_data
 else
     echo "Warning: Raw data file not found at data/raw/county_landuse_projections_RPA.json"
     echo "Database initialized without data. Run import manually when data is available."
@@ -64,7 +64,7 @@ conn.execute('DELETE FROM time_steps WHERE start_year = 2012')
 print('Calibration period removed successfully.')
 
 # 2. Remove redundant t1 and t2 columns
-print('\\nChecking for redundant columns...')
+print('\nChecking for redundant columns...')
 col_check = conn.execute(\"\"\"
     SELECT COUNT(*) 
     FROM pragma_table_info('land_use_transitions') 
@@ -83,7 +83,7 @@ else:
     print('Columns t1 and t2 not found in the land_use_transitions table.')
 
 # 3. Remove t1 and t2 from land_use_categories table
-print('\\nRemoving t1 and t2 from land_use_categories table...')
+print('\nRemoving t1 and t2 from land_use_categories table...')
 try:
     # First, check if there are any remaining references to t1/t2 in transitions
     ref_check = conn.execute(\"\"\"
@@ -101,7 +101,7 @@ except Exception as e:
 
 # Close connection
 conn.close()
-print('\\nDatabase cleanup completed successfully.')
+print('\nDatabase cleanup completed successfully.')
 "
 
 echo "Database setup complete!" 
