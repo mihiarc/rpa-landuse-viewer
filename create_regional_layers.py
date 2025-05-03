@@ -48,7 +48,19 @@ def parse_args():
     parser.add_argument(
         "--scenario-id", 
         type=int,
-        help="Specific scenario ID to process (if not provided, all scenarios are processed)"
+        help="Specific scenario ID to process (if not provided, only the ensemble and RPA scenarios are processed)"
+    )
+    parser.add_argument(
+        "--scenario-ids",
+        type=int,
+        nargs="+",
+        default=[21, 22, 23, 24, 25],
+        help="List of scenario IDs to process (default: 21-25, ensemble mean and RPA integrated scenarios)"
+    )
+    parser.add_argument(
+        "--all-scenarios",
+        action="store_true",
+        help="Process all scenarios instead of only the default ensemble and RPA scenarios"
     )
     parser.add_argument(
         "--no-partition", 
@@ -94,13 +106,22 @@ def main():
                     memory_limit=args.memory
                 )
         
-        # Step 2: Export to Parquet (if requested)
+        # Step 2: Export to Parquet
         if not args.only_views:
             logger.info(f"Exporting materialized views to Parquet in {args.export_dir}")
             
+            # Determine which scenarios to export
+            scenario_ids = None
+            if args.scenario_id:
+                scenario_ids = [args.scenario_id]
+            elif not args.all_scenarios:
+                scenario_ids = args.scenario_ids
+                logger.info(f"Processing only scenarios {scenario_ids} (ensemble mean and RPA integrated scenarios)")
+            
             exported_files = RegionRepository.export_regional_data_to_parquet(
                 output_dir=args.export_dir,
-                partition_by_scenario=not args.no_partition
+                partition_by_scenario=not args.no_partition,
+                scenario_ids=scenario_ids
             )
             
             # Report on exported files

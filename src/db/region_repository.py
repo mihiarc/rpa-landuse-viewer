@@ -387,7 +387,8 @@ class RegionRepository(BaseRepository):
     
     @classmethod
     def export_regional_data_to_parquet(cls, output_dir: str = 'data/exports', 
-                                        partition_by_scenario: bool = True) -> Dict[str, str]:
+                                        partition_by_scenario: bool = True,
+                                        scenario_ids: Optional[List[int]] = None) -> Dict[str, str]:
         """
         Export regionalized data to Parquet files for external analysis.
         
@@ -397,6 +398,7 @@ class RegionRepository(BaseRepository):
         Args:
             output_dir: Directory where Parquet files will be saved
             partition_by_scenario: If True, create separate files for each scenario
+            scenario_ids: Optional list of scenario IDs to export (if None, all scenarios are exported)
             
         Returns:
             Dictionary mapping view names to their Parquet file paths
@@ -417,10 +419,17 @@ class RegionRepository(BaseRepository):
                 mat_table = f"mat_{view_name}"
                 
                 if partition_by_scenario:
-                    # Get all scenarios
+                    # Get scenarios to export
+                    scenario_filter = ""
+                    if scenario_ids:
+                        scenario_ids_str = ", ".join(str(s_id) for s_id in scenario_ids)
+                        scenario_filter = f"WHERE scenario_id IN ({scenario_ids_str})"
+                        
+                    # Get all scenarios that match filter
                     scenarios = conn.execute(f"""
                     SELECT DISTINCT scenario_id, scenario_name 
                     FROM {mat_table}
+                    {scenario_filter}
                     ORDER BY scenario_id
                     """).fetchall()
                     
@@ -449,12 +458,20 @@ class RegionRepository(BaseRepository):
                             exported_files[scenario_id] = []
                         exported_files[scenario_id].append(filepath)
                 else:
-                    # Export entire view to a single file
+                    # Export entire view or filtered by scenario_ids to a single file
+                    scenario_filter = ""
+                    if scenario_ids:
+                        scenario_ids_str = ", ".join(str(s_id) for s_id in scenario_ids)
+                        scenario_filter = f"WHERE scenario_id IN ({scenario_ids_str})"
+                        
                     filepath = os.path.join(output_dir, f"{view_name}.parquet")
                     logger.info(f"Exporting {mat_table} to {filepath}")
                     
                     conn.execute(f"""
-                    COPY (SELECT * FROM {mat_table}) 
+                    COPY (
+                        SELECT * FROM {mat_table}
+                        {scenario_filter}
+                    ) 
                     TO '{filepath}' (FORMAT PARQUET, COMPRESSION 'ZSTD')
                     """)
                     
