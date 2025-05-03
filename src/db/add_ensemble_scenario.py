@@ -52,16 +52,21 @@ def check_if_ensemble_exists(scenario_name):
     result = DBManager.query_df(query)
     
     if not result.empty:
-        logger.info(f"Ensemble scenario '{scenario_name}' already exists with ID: {result['scenario_id'].iloc[0]}")
-        return result['scenario_id'].iloc[0]
+        # Convert numpy.int32 to Python int to avoid DuckDB type errors
+        scenario_id = int(result['scenario_id'].iloc[0])
+        logger.info(f"Ensemble scenario '{scenario_name}' already exists with ID: {scenario_id}")
+        return scenario_id
     
     return None
 
 def delete_ensemble_scenario(scenario_id):
     """Delete an existing ensemble scenario."""
+    # Convert numpy.int32 to Python int to avoid DuckDB type error
+    scenario_id = int(scenario_id)
+    
     logger.info(f"Deleting ensemble scenario with ID: {scenario_id}")
     with DBManager.connection() as conn:
-        conn.execute("DELETE FROM land_use_transitions WHERE scenario_id = ?", [scenario_id])
+        conn.execute("DELETE FROM landuse_change WHERE scenario_id = ?", [scenario_id])
         conn.execute("DELETE FROM scenarios WHERE scenario_id = ?", [scenario_id])
 
 def get_all_scenarios():
@@ -93,9 +98,9 @@ def create_ensemble_scenario(scenario_name, gcm, rcp, ssp, description):
     return ensemble_id
 
 def get_all_time_steps():
-    """Get all time steps from the database."""
-    query = "SELECT time_step_id FROM time_steps ORDER BY time_step_id"
-    return DBManager.query_df(query)['time_step_id'].tolist()
+    """Get all time steps (decades) from the database."""
+    query = "SELECT decade_id FROM decades ORDER BY decade_id"
+    return DBManager.query_df(query)['decade_id'].tolist()
 
 def calculate_and_insert_ensemble_transitions(ensemble_id, scenario_ids, batch_size=50000):
     """Calculate and insert the ensemble transitions for a given set of scenario IDs."""
@@ -105,42 +110,42 @@ def calculate_and_insert_ensemble_transitions(ensemble_id, scenario_ids, batch_s
     
     logger.info(f"Calculating and inserting ensemble transitions for {len(scenario_ids)} scenarios")
     
-    # Get all time steps
+    # Get all time steps (decades)
     time_steps = get_all_time_steps()
     
     # Get the current max transition ID to start incrementing from
-    max_id_query = "SELECT MAX(transition_id) + 1 AS next_id FROM land_use_transitions"
+    max_id_query = "SELECT MAX(transition_id) + 1 AS next_id FROM landuse_change"
     max_id_result = DBManager.query_df(max_id_query)
-    next_transition_id = int(max_id_result['next_id'].iloc[0])  # Convert numpy.int32 to Python int
+    next_transition_id = int(max_id_result['next_id'].iloc[0]) if not max_id_result['next_id'].isnull().iloc[0] else 1
     
     total_inserted = 0
     
-    # Process each time step separately to manage memory
-    for time_step_id in tqdm(time_steps, desc="Processing time steps"):
-        logger.info(f"Processing time step ID: {time_step_id}")
+    # Process each time step (decade) separately to manage memory
+    for decade_id in tqdm(time_steps, desc="Processing decades"):
+        logger.info(f"Processing decade ID: {decade_id}")
         
-        # Query to calculate the mean transitions for this time step
+        # Query to calculate the mean transitions for this decade
         ensemble_query = f"""
         SELECT 
-            time_step_id,
+            decade_id,
             fips_code,
-            from_land_use,
-            to_land_use,
+            from_landuse,
+            to_landuse,
             AVG(area_hundreds_acres) AS area_hundreds_acres
         FROM 
-            land_use_transitions
+            landuse_change
         WHERE 
             scenario_id IN ({','.join([str(id) for id in scenario_ids])})
-            AND time_step_id = {time_step_id}
+            AND decade_id = {decade_id}
         GROUP BY 
-            time_step_id, fips_code, from_land_use, to_land_use
+            decade_id, fips_code, from_landuse, to_landuse
         """
         
-        # Get the ensemble data for this time step
+        # Get the ensemble data for this decade
         ensemble_df = DBManager.query_df(ensemble_query)
         
         if ensemble_df.empty:
-            logger.warning(f"No data found for time step {time_step_id}")
+            logger.warning(f"No data found for decade {decade_id}")
             continue
         
         # Add the ensemble scenario ID and transition IDs
@@ -157,10 +162,10 @@ def calculate_and_insert_ensemble_transitions(ensemble_id, scenario_ids, batch_s
             with DBManager.connection() as conn:
                 conn.register('ensemble_batch', batch_df)
                 conn.execute("""
-                    INSERT INTO land_use_transitions
+                    INSERT INTO landuse_change
                     SELECT 
-                        transition_id, scenario_id, time_step_id, 
-                        fips_code, from_land_use, to_land_use, area_hundreds_acres
+                        transition_id, scenario_id, decade_id, 
+                        fips_code, from_landuse, to_landuse, area_hundreds_acres
                     FROM 
                         ensemble_batch
                 """)
@@ -306,7 +311,7 @@ def main():
         SchemaManager.optimize_database()
         
         logger.info(f"Successfully created {len(created_ids)} ensemble scenarios")
-        logger.info("To view an ensemble scenario, use: python query_db.py transitions --scenario <id> --timestep 1")
+        logger.info("To view an ensemble scenario, use: python query_db.py transitions --scenario <id> --decade 1")
     else:
         logger.info("No ensemble scenarios were created")
 

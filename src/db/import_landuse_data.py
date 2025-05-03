@@ -12,6 +12,7 @@ import os
 import sys
 import json
 import logging
+import argparse
 from pathlib import Path
 from tqdm import tqdm
 import pandas as pd
@@ -31,7 +32,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("data-import")
 
-JSON_PATH = "data/raw/county_landuse_projections_RPA.json"
+# Default JSON data path
+DEFAULT_JSON_PATH = "data/raw/county_landuse_projections_RPA.json"
 
 def setup_database():
     """Ensure database is initialized before importing data."""
@@ -224,14 +226,21 @@ def process_transitions(json_data, scenario_map, time_step_map, counties):
 
 def main():
     """Main function to import data."""
-    logger.info(f"Starting import of land use data from {JSON_PATH}")
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Import land use data from JSON into DuckDB")
+    parser.add_argument('--input', type=str, default=DEFAULT_JSON_PATH,
+                        help=f'Path to the input JSON file (default: {DEFAULT_JSON_PATH})')
+    args = parser.parse_args()
+    
+    json_path = args.input
+    logger.info(f"Starting import of land use data from {json_path}")
     
     # Make sure the database is ready
     setup_database()
     
     # Load the JSON data
     logger.info("Loading JSON data (this may take a while for large files)")
-    with open(JSON_PATH, 'r') as f:
+    with open(json_path, 'r') as f:
         json_data = json.load(f)
     
     # Insert metadata

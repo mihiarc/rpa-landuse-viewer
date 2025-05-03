@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.DS_Store
 
 # Virtual environments
 .env
@@ -60,6 +61,7 @@ jspm_packages/
 logs/
 *.log
 log.txt
+*.pyc
 
 # Local configuration
 *.local.yaml

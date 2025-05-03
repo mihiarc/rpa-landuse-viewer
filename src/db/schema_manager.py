@@ -26,20 +26,20 @@ class SchemaManager:
     # Key indexes for optimizing common queries
     INDEXES = [
         # Basic indexes (already defined in init.sql)
-        ("idx_land_use_transitions", "land_use_transitions (scenario_id, time_step_id, fips_code)"),
-        ("idx_from_land_use", "land_use_transitions (from_land_use)"),
-        ("idx_to_land_use", "land_use_transitions (to_land_use)"),
+        ("idx_landuse_change", "landuse_change (scenario_id, decade_id, fips_code)"),
+        ("idx_from_landuse", "landuse_change (from_landuse)"),
+        ("idx_to_landuse", "landuse_change (to_landuse)"),
         
         # Additional optimized indexes for common queries
-        ("idx_transitions_scenario_time", "land_use_transitions (scenario_id, time_step_id)"),
-        ("idx_transitions_scenario_fips", "land_use_transitions (scenario_id, fips_code)"),
-        ("idx_transitions_from_to", "land_use_transitions (from_land_use, to_land_use)"),
-        ("idx_transitions_complete", "land_use_transitions (scenario_id, time_step_id, fips_code, from_land_use, to_land_use)"),
+        ("idx_transitions_scenario_decade", "landuse_change (scenario_id, decade_id)"),
+        ("idx_transitions_scenario_fips", "landuse_change (scenario_id, fips_code)"),
+        ("idx_transitions_from_to", "landuse_change (from_landuse, to_landuse)"),
+        ("idx_transitions_complete", "landuse_change (scenario_id, decade_id, fips_code, from_landuse, to_landuse)"),
         
         # Indexes for lookups
         ("idx_scenarios_name", "scenarios (scenario_name)"),
         ("idx_scenarios_climate", "scenarios (gcm, rcp, ssp)"),
-        ("idx_time_steps_years", "time_steps (start_year, end_year)"),
+        ("idx_decades_years", "decades (start_year, end_year)"),
     ]
     
     @classmethod
