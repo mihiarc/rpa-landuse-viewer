@@ -63,39 +63,70 @@ conn.execute('DELETE FROM land_use_transitions WHERE time_step_id = ?', [time_st
 conn.execute('DELETE FROM time_steps WHERE start_year = 2012')
 print('Calibration period removed successfully.')
 
-# Reindex the time step IDs to maintain sequential integrity
+# 1a. Create new sequential time step IDs
 print('\nReindexing time step IDs...')
-conn.execute('''
-    CREATE TEMPORARY TABLE temp_time_steps AS 
-    SELECT ROW_NUMBER() OVER (ORDER BY start_year, end_year) AS new_id, 
-           time_step_id AS old_id, start_year, end_year, notes 
-    FROM time_steps
-''')
+# Get current time steps ordered by start_year
+time_steps = conn.execute('''
+    SELECT time_step_id, start_year, end_year, time_step_name 
+    FROM time_steps 
+    ORDER BY start_year
+''').fetchall()
 
-# Update references in land_use_transitions
-conn.execute('''
-    UPDATE land_use_transitions
-    SET time_step_id = (
-        SELECT new_id 
-        FROM temp_time_steps 
-        WHERE old_id = land_use_transitions.time_step_id
-    )
-''')
+# Create mapping from old to new IDs
+id_mapping = {}
+for i, ts in enumerate(time_steps, 1):
+    old_id = ts[0]
+    id_mapping[old_id] = i
+    print(f'Mapping: Old ID {old_id} -> New ID {i}, Year: {ts[1]}, Name: {ts[3]}')
 
-# Update the time_steps table
-conn.execute('''
-    DELETE FROM time_steps
-''')
+# Only proceed if IDs need to be changed
+needs_update = False
+for old_id, new_id in id_mapping.items():
+    if old_id != new_id:
+        needs_update = True
+        break
 
-conn.execute('''
-    INSERT INTO time_steps (time_step_id, start_year, end_year, notes)
-    SELECT new_id, start_year, end_year, notes
-    FROM temp_time_steps
-''')
-
-# Drop temporary table
-conn.execute('DROP TABLE temp_time_steps')
-print('Time step IDs reindexed successfully.')
+if needs_update:
+    print('Updating time step IDs...')
+    
+    # Create temporary database and copy all data with new time step IDs
+    temp_db_path = 'data/database/rpa_temp.db'
+    conn.execute(f\"EXPORT DATABASE '{temp_db_path}'\")
+    temp_conn = duckdb.connect(temp_db_path)
+    
+    # Update time_step_id values in the temporary database
+    for old_id, new_id in id_mapping.items():
+        if old_id != new_id:
+            # Update time_steps table
+            temp_conn.execute('''
+                UPDATE time_steps 
+                SET time_step_id = ? 
+                WHERE time_step_id = ?
+            ''', [new_id, old_id])
+            
+            # Update references in land_use_transitions
+            temp_conn.execute('''
+                UPDATE land_use_transitions 
+                SET time_step_id = ? 
+                WHERE time_step_id = ?
+            ''', [new_id, old_id])
+    
+    # Close connections
+    conn.close()
+    temp_conn.close()
+    
+    # Replace original database with temp database
+    import os
+    import shutil
+    os.remove('data/database/rpa.db')
+    shutil.copy(temp_db_path, 'data/database/rpa.db')
+    os.remove(temp_db_path)
+    
+    # Reconnect to the updated database
+    conn = duckdb.connect('data/database/rpa.db')
+    print('Time step IDs reindexed successfully.')
+else:
+    print('No reindexing needed - time step IDs are already sequential.')
 
 # 2. Remove redundant t1 and t2 columns
 print('\nChecking for redundant columns...')
@@ -119,7 +150,7 @@ else:
 # 3. Remove t1 and t2 from land_use_categories table
 print('\nRemoving t1 and t2 from land_use_categories table...')
 try:
-    conn.execute("DELETE FROM land_use_categories WHERE category_code IN ('t1', 't2')")
+    conn.execute(\"DELETE FROM land_use_categories WHERE category_code IN ('t1', 't2')\")
     print('Removed t1 and t2 from land_use_categories successfully.')
 except Exception as e:
     print(f'Error removing t1/t2 from categories: {e}')
