@@ -19,12 +19,25 @@ if ! command -v uv &> /dev/null; then
     exit 1
 fi
 
-# Create virtual environment if it doesn't exist
-if [ ! -d ".venv" ]; then
+# Check for existing environment
+REBUILD_MODE=false
+if [ -d ".venv" ]; then
+    echo -e "${YELLOW}Virtual environment already exists.${NC}"
+    read -p "Rebuild environment from scratch? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}Removing existing environment...${NC}"
+        rm -rf .venv
+        REBUILD_MODE=true
+    else
+        echo -e "${GREEN}Updating existing environment...${NC}"
+    fi
+fi
+
+# Create virtual environment if it doesn't exist or was removed
+if [ ! -d ".venv" ] || [ "$REBUILD_MODE" = true ]; then
     echo -e "${GREEN}Creating virtual environment...${NC}"
     uv venv .venv
-else
-    echo -e "${YELLOW}Virtual environment already exists.${NC}"
 fi
 
 # Activate virtual environment
@@ -32,26 +45,22 @@ echo -e "${GREEN}Activating virtual environment...${NC}"
 source .venv/bin/activate
 
 # Install dependencies
-echo -e "${GREEN}Installing dependencies...${NC}"
-
-# Create requirements.txt if it doesn't exist
-if [ ! -f "requirements.txt" ]; then
-    echo -e "${YELLOW}Creating requirements.txt with core dependencies...${NC}"
-    cat > requirements.txt << EOF
-duckdb>=0.10.0
-pandas>=2.1.0
-numpy>=1.26.0
-python-dotenv>=1.0.0
-pyarrow>=15.0.0
-pytest>=7.4.0
-flake8>=6.1.0
-black>=23.9.0
-EOF
-fi
-
-# Install packages with UV
 echo -e "${GREEN}Installing packages with UV...${NC}"
-uv pip install -r requirements.txt
+
+# Get Python version
+PYTHON_VERSION=$(python --version | cut -d' ' -f2 | cut -d'.' -f1,2)
+echo -e "${GREEN}Detected Python version: ${PYTHON_VERSION}${NC}"
+
+# Install packages from requirements.txt
+if [[ "${PYTHON_VERSION}" == "3.12" ]]; then
+    echo -e "${GREEN}Using Python 3.12 compatible packages${NC}"
+    # Install numpy first to ensure compatibility
+    uv pip install "numpy>=1.25.0,<2.0.0" --upgrade
+    uv pip install -r requirements.txt --upgrade
+else
+    echo -e "${GREEN}Using standard package versions${NC}"
+    uv pip install -r requirements.txt --upgrade
+fi
 
 # Install development package in editable mode
 echo -e "${GREEN}Installing package in development mode...${NC}"
@@ -60,5 +69,5 @@ uv pip install -e .
 # Final message
 echo -e "${GREEN}Setup complete!${NC}"
 echo -e "To activate the environment, run: ${YELLOW}source .venv/bin/activate${NC}"
-echo -e "To optimize the database, run: ${YELLOW}python src/db/optimize_database.py --all${NC}"
-echo -e "To initialize a new database, run: ${YELLOW}python src/db/initialize_database.py --with-migrations${NC}" 
+echo -e "To create semantic layers, run: ${YELLOW}python create_semantic_layers.py${NC}"
+echo -e "To query the semantic layers, run: ${YELLOW}python query_semantic_layers.py${NC}" 

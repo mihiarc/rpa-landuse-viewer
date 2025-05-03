@@ -1,8 +1,16 @@
-duckdb>=0.10.0
-pandas>=2.1.0
-numpy>=1.26.0
+# Core data processing libraries with Python 3.12 compatible versions
+numpy>=1.25.0,<2.0.0
+pandas==1.5.3
+duckdb>=1.0.0
+pyarrow>=14.0.0
+
+# PandasAI and dependencies
+pandasai==2.4.2
+matplotlib>=3.8.0
+httpx>=0.24.0
 python-dotenv>=1.0.0
-pyarrow>=15.0.0
+
+# Development tools
 pytest>=7.4.0
 flake8>=6.1.0
 black>=23.9.0
