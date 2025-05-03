@@ -52,22 +52,8 @@ VENV_PYTHON_VERSION=$(python --version | cut -d' ' -f2 | cut -d'.' -f1,2)
 echo -e "${GREEN}Using Python version: ${VENV_PYTHON_VERSION}${NC}"
 
 # Install packages from requirements.txt
-if [[ "${VENV_PYTHON_VERSION}" == "3.12" ]]; then
-    echo -e "${GREEN}Using Python 3.12 compatible packages${NC}"
-    # Install numpy first to ensure compatibility
-    uv pip install "numpy>=1.25.0,<2.0.0" --upgrade
-    uv pip install -r requirements.txt --upgrade
-else
-    echo -e "${GREEN}Using standard package versions${NC}"
-    uv pip install -r requirements.txt --upgrade
-fi
-
-# Install development package in editable mode
-echo -e "${GREEN}Installing package in development mode...${NC}"
-uv pip install -e .
+echo -e "${GREEN}Using Python 3.11 compatible packages${NC}"
+uv pip install -r requirements.txt
 
 # Final message
-echo -e "${GREEN}Setup complete!${NC}"
-echo -e "To activate the environment, run: ${YELLOW}source .venv/bin/activate${NC}"
-echo -e "To create semantic layers, run: ${YELLOW}python create_semantic_layers.py${NC}"
-echo -e "To query the semantic layers, run: ${YELLOW}python query_semantic_layers.py${NC}" 
+echo -e "${GREEN}Setup complete!${NC}" 
