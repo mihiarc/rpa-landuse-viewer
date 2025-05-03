@@ -45,6 +45,7 @@ data/raw/
 data/database/
 data/database/rpa_landuse_duck.db
 docs/rpa_text/
+*.parquet
 
 # Dependency directories
 node_modules/
