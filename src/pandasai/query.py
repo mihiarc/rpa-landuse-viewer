@@ -3,112 +3,157 @@ Functions for querying the PandasAI semantic layers.
 """
 
 import os
-import pandasai as pai
+import pandas as pd
+from pandasai import SmartDataframe
+from pandasai.llm import OpenAI
 from dotenv import load_dotenv
 
 
-def setup_api_key():
-    """Set up the PandasAI API key from environment variables."""
+def get_api_key():
+    """Get the API key from environment variables."""
     load_dotenv(dotenv_path=".env")
-    api_key = os.getenv("PANDASAI_API_KEY")
     
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError(
-            "No PANDASAI_API_KEY found in .env file. "
-            "Please create a .env file with your PandasAI API key."
+            "No API key found in .env file. "
+            "Please create a .env file with your OPENAI_API_KEY."
         )
     
-    pai.api_key.set(api_key)
+    return api_key
 
 
-def load_datasets(org_path="rpa-landuse"):
+def get_llm():
+    """Get the LLM with the API key."""
+    api_key = get_api_key()
+    
+    # Use OpenAI with the provided API key
+    # Note: If using non-OpenAI keys (like Anthropic), you might need to modify
+    # your .env file to use a standard OpenAI format key instead
+    return OpenAI(api_token=api_key)
+
+
+def load_datasets(parquet_dir="land_use_parquet"):
     """
-    Load PandasAI datasets from the organization.
+    Load datasets from parquet files and create SmartDataframes.
     
     Args:
-        org_path (str): Organization path prefix for PandasAI datasets
+        parquet_dir (str): Directory containing parquet files
         
     Returns:
-        dict: Dictionary with the loaded semantic layer objects
+        dict: Dictionary with SmartDataframe objects
     """
-    setup_api_key()
+    llm = get_llm()
     
-    # Load the datasets
+    # Paths for the parquet files
+    transitions_parquet = f"{parquet_dir}/transitions_summary.parquet"
+    county_parquet = f"{parquet_dir}/county_transitions.parquet"
+    urbanization_parquet = f"{parquet_dir}/urbanization_trends.parquet"
+    
     try:
-        transitions_dataset = pai.load(f"{org_path}/land-use-transitions")
-        county_dataset = pai.load(f"{org_path}/county-transitions")
-        urbanization_dataset = pai.load(f"{org_path}/urbanization-trends")
+        # Load the dataframes
+        transitions_df = pd.read_parquet(transitions_parquet)
+        county_df = pd.read_parquet(county_parquet)
+        urbanization_df = pd.read_parquet(urbanization_parquet)
+        
+        # Create SmartDataframes
+        transitions_smart_df = SmartDataframe(
+            transitions_df,
+            config={"llm": llm, "name": "Land Use Transitions"}
+        )
+        
+        county_smart_df = SmartDataframe(
+            county_df,
+            config={"llm": llm, "name": "County Land Use Transitions"}
+        )
+        
+        urbanization_smart_df = SmartDataframe(
+            urbanization_df,
+            config={"llm": llm, "name": "Urbanization Trends"}
+        )
         
         return {
-            "transitions": transitions_dataset,
-            "county": county_dataset,
-            "urbanization": urbanization_dataset
+            "transitions": transitions_smart_df,
+            "county": county_smart_df,
+            "urbanization": urbanization_smart_df
         }
     except Exception as e:
         raise RuntimeError(f"Failed to load datasets: {e}")
 
 
-def query_transitions(query, org_path="rpa-landuse"):
+def query_transitions(query, parquet_dir="land_use_parquet"):
     """
     Query the land use transitions dataset with natural language.
     
     Args:
         query (str): Natural language query
-        org_path (str): Organization path prefix for PandasAI datasets
+        parquet_dir (str): Directory containing parquet files
         
     Returns:
         object: Response from PandasAI
     """
-    setup_api_key()
+    llm = get_llm()
     
     # Load the dataset
-    dataset = pai.load(f"{org_path}/land-use-transitions")
+    transitions_df = pd.read_parquet(f"{parquet_dir}/transitions_summary.parquet")
+    smart_df = SmartDataframe(
+        transitions_df,
+        config={"llm": llm, "name": "Land Use Transitions"}
+    )
     
     # Query the dataset
-    return dataset.chat(query)
+    return smart_df.chat(query)
 
 
-def query_county_transitions(query, org_path="rpa-landuse"):
+def query_county_transitions(query, parquet_dir="land_use_parquet"):
     """
     Query the county-level transitions dataset with natural language.
     
     Args:
         query (str): Natural language query
-        org_path (str): Organization path prefix for PandasAI datasets
+        parquet_dir (str): Directory containing parquet files
         
     Returns:
         object: Response from PandasAI
     """
-    setup_api_key()
+    llm = get_llm()
     
     # Load the dataset
-    dataset = pai.load(f"{org_path}/county-transitions")
+    county_df = pd.read_parquet(f"{parquet_dir}/county_transitions.parquet")
+    smart_df = SmartDataframe(
+        county_df,
+        config={"llm": llm, "name": "County Land Use Transitions"}
+    )
     
     # Query the dataset
-    return dataset.chat(query)
+    return smart_df.chat(query)
 
 
-def query_urbanization_trends(query, org_path="rpa-landuse"):
+def query_urbanization_trends(query, parquet_dir="land_use_parquet"):
     """
     Query the urbanization trends dataset with natural language.
     
     Args:
         query (str): Natural language query
-        org_path (str): Organization path prefix for PandasAI datasets
+        parquet_dir (str): Directory containing parquet files
         
     Returns:
         object: Response from PandasAI
     """
-    setup_api_key()
+    llm = get_llm()
     
     # Load the dataset
-    dataset = pai.load(f"{org_path}/urbanization-trends")
+    urbanization_df = pd.read_parquet(f"{parquet_dir}/urbanization_trends.parquet")
+    smart_df = SmartDataframe(
+        urbanization_df,
+        config={"llm": llm, "name": "Urbanization Trends"}
+    )
     
     # Query the dataset
-    return dataset.chat(query)
+    return smart_df.chat(query)
 
 
-def multi_dataset_query(query, datasets=None, org_path="rpa-landuse"):
+def multi_dataset_query(query, datasets=None, parquet_dir="land_use_parquet"):
     """
     Query multiple datasets with natural language.
     
@@ -116,13 +161,11 @@ def multi_dataset_query(query, datasets=None, org_path="rpa-landuse"):
         query (str): Natural language query
         datasets (list, optional): List of dataset names to include
                                   (transitions, county, urbanization)
-        org_path (str): Organization path prefix for PandasAI datasets
+        parquet_dir (str): Directory containing parquet files
         
     Returns:
         object: Response from PandasAI
     """
-    setup_api_key()
-    
     # Default to all datasets if none specified
     if not datasets:
         datasets = ["transitions", "county", "urbanization"]
@@ -134,15 +177,14 @@ def multi_dataset_query(query, datasets=None, org_path="rpa-landuse"):
             raise ValueError(f"Invalid dataset name: {name}. "
                            f"Valid names are: {', '.join(valid_names)}")
     
-    # Get dataset paths
-    paths = {
-        "transitions": f"{org_path}/land-use-transitions",
-        "county": f"{org_path}/county-transitions",
-        "urbanization": f"{org_path}/urbanization-trends"
-    }
+    # Load all datasets
+    all_datasets = load_datasets(parquet_dir)
     
-    # Load the selected datasets
-    loaded_datasets = [pai.load(paths[name]) for name in datasets]
+    # Filter to selected datasets
+    selected_datasets = [all_datasets[name] for name in datasets]
     
-    # Query the datasets
-    return pai.chat(query, *loaded_datasets) 
+    # For now, just use the first dataset since pandasai 2.4.2 doesn't support 
+    # multi-dataset querying in the same way
+    primary_dataset = selected_datasets[0]
+    
+    return primary_dataset.chat(f"Query across multiple datasets: {query}") 

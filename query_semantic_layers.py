@@ -29,10 +29,10 @@ def main():
         help="Natural language query"
     )
     parser.add_argument(
-        "--org-path", 
+        "--parquet-dir", 
         type=str, 
-        default="rpa-landuse",
-        help="Organization path prefix for PandasAI datasets"
+        default="land_use_parquet",
+        help="Directory containing parquet files"
     )
     
     args = parser.parse_args()
@@ -41,16 +41,16 @@ def main():
         # Query the appropriate dataset
         if args.dataset == "transitions":
             print(f"Querying transitions dataset: '{args.query}'")
-            response = query_transitions(args.query, org_path=args.org_path)
+            response = query_transitions(args.query, parquet_dir=args.parquet_dir)
         elif args.dataset == "county":
             print(f"Querying county-level transitions dataset: '{args.query}'")
-            response = query_county_transitions(args.query, org_path=args.org_path)
+            response = query_county_transitions(args.query, parquet_dir=args.parquet_dir)
         elif args.dataset == "urbanization":
             print(f"Querying urbanization trends dataset: '{args.query}'")
-            response = query_urbanization_trends(args.query, org_path=args.org_path)
+            response = query_urbanization_trends(args.query, parquet_dir=args.parquet_dir)
         elif args.dataset == "multi":
             print(f"Querying multiple datasets: '{args.query}'")
-            response = multi_dataset_query(args.query, org_path=args.org_path)
+            response = multi_dataset_query(args.query, parquet_dir=args.parquet_dir)
         
         # Print the response
         print("\nResponse:")

@@ -120,6 +120,30 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
     return output_files
 
 
+def get_api_key():
+    """Get the API key from environment variables."""
+    load_dotenv(dotenv_path=".env")
+    
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "No API key found in .env file. "
+            "Please create a .env file with your OPENAI_API_KEY."
+        )
+    
+    return api_key
+
+
+def get_llm():
+    """Get the LLM with the API key."""
+    api_key = get_api_key()
+    
+    # Use OpenAI with the provided API key
+    # Note: If using non-OpenAI keys (like Anthropic), you might need to modify
+    # your .env file to use a standard OpenAI format key instead
+    return OpenAI(api_token=api_key)
+
+
 def create_semantic_layers(parquet_dir="land_use_parquet", org_path="rpa-landuse"):
     """
     Create semantic layers using PandasAI for the extracted data.
@@ -131,18 +155,8 @@ def create_semantic_layers(parquet_dir="land_use_parquet", org_path="rpa-landuse
     Returns:
         dict: Dictionary with the created semantic layer objects
     """
-    # Ensure API key is set
-    load_dotenv(dotenv_path=".env")
-    api_key = os.getenv("PANDASAI_API_KEY")
-    
-    if not api_key:
-        raise ValueError(
-            "No PANDASAI_API_KEY found in .env file. "
-            "Please create a .env file with your PandasAI API key."
-        )
-    
-    # Initialize OpenAI LLM with the API key
-    llm = OpenAI(api_token=api_key)
+    # Get the appropriate LLM
+    llm = get_llm()
     
     # Paths for the parquet files
     transitions_parquet = f"{parquet_dir}/transitions_summary.parquet"

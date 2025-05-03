@@ -36,8 +36,8 @@ fi
 
 # Create virtual environment if it doesn't exist or was removed
 if [ ! -d ".venv" ] || [ "$REBUILD_MODE" = true ]; then
-    echo -e "${GREEN}Creating virtual environment...${NC}"
-    uv venv .venv
+    echo -e "${GREEN}Creating virtual environment with Python 3.11...${NC}"
+    uv venv --python 3.11 .venv
 fi
 
 # Activate virtual environment
@@ -47,12 +47,12 @@ source .venv/bin/activate
 # Install dependencies
 echo -e "${GREEN}Installing packages with UV...${NC}"
 
-# Get Python version
-PYTHON_VERSION=$(python --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-echo -e "${GREEN}Detected Python version: ${PYTHON_VERSION}${NC}"
+# Get Python version from the virtual environment
+VENV_PYTHON_VERSION=$(python --version | cut -d' ' -f2 | cut -d'.' -f1,2)
+echo -e "${GREEN}Using Python version: ${VENV_PYTHON_VERSION}${NC}"
 
 # Install packages from requirements.txt
-if [[ "${PYTHON_VERSION}" == "3.12" ]]; then
+if [[ "${VENV_PYTHON_VERSION}" == "3.12" ]]; then
     echo -e "${GREEN}Using Python 3.12 compatible packages${NC}"
     # Install numpy first to ensure compatibility
     uv pip install "numpy>=1.25.0,<2.0.0" --upgrade
