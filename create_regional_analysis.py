@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""
+Regional Analysis Data Generation Script.
+
+This script creates materialized views for regional aggregations of land use transitions
+and exports them to Parquet format for external analysis.
+"""
+
+import sys
+import argparse
+import logging
+from pathlib import Path
+
+# Add the src directory to the Python path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from src.db.region_repository import RegionRepository
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
+
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Generate regional analysis data from land use transitions"
+    )
+    parser.add_argument(
+        "--threads", 
+        type=int, 
+        default=8,
+        help="Number of threads to use for parallel processing"
+    )
+    parser.add_argument(
+        "--memory", 
+        default="4GB",
+        help="Memory limit for DuckDB operations (e.g., 4GB, 8GB)"
+    )
+    parser.add_argument(
+        "--export-dir", 
+        default="data/exports",
+        help="Directory where to export Parquet files"
+    )
+    parser.add_argument(
+        "--scenario-id", 
+        type=int,
+        help="Specific scenario ID to process (if not provided, all scenarios are processed)"
+    )
+    parser.add_argument(
+        "--no-partition", 
+        action="store_true",
+        help="Do not partition exports by scenario (creates larger single files)"
+    )
+    parser.add_argument(
+        "--only-export", 
+        action="store_true",
+        help="Skip materialized view creation and only export existing views"
+    )
+    parser.add_argument(
+        "--only-views", 
+        action="store_true",
+        help="Only create materialized views without exporting"
+    )
+    return parser.parse_args()
+
+def main():
+    """Main function to run the regional analysis data generation."""
+    args = parse_args()
+    
+    logger.info("Starting regional analysis data generation")
+    
+    try:
+        # Step 1: Create/refresh materialized views
+        if not args.only_export:
+            logger.info(f"Creating materialized views with {args.threads} threads and {args.memory} memory limit")
+            
+            if args.scenario_id:
+                # Only refresh a specific scenario
+                logger.info(f"Refreshing materialized views for scenario {args.scenario_id}")
+                RegionRepository.refresh_materialized_views(
+                    scenario_id=args.scenario_id,
+                    threads=args.threads,
+                    memory_limit=args.memory
+                )
+            else:
+                # Create/refresh all materialized views
+                logger.info("Creating all materialized views")
+                RegionRepository.create_materialized_views(
+                    threads=args.threads,
+                    memory_limit=args.memory
+                )
+        
+        # Step 2: Export to Parquet (if requested)
+        if not args.only_views:
+            logger.info(f"Exporting materialized views to Parquet in {args.export_dir}")
+            
+            exported_files = RegionRepository.export_regional_data_to_parquet(
+                output_dir=args.export_dir,
+                partition_by_scenario=not args.no_partition
+            )
+            
+            # Report on exported files
+            if isinstance(exported_files, dict):
+                total_files = 0
+                if args.no_partition:
+                    total_files = len(exported_files)
+                    logger.info(f"Exported {total_files} consolidated Parquet files")
+                else:
+                    for scenario_id, files in exported_files.items():
+                        if isinstance(files, list):
+                            total_files += len(files)
+                        else:
+                            total_files += 1
+                    logger.info(f"Exported {total_files} scenario-partitioned Parquet files")
+        
+        logger.info("Regional analysis data generation completed successfully")
+        
+    except Exception as e:
+        logger.error(f"Error in regional analysis data generation: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main() 
