@@ -1,0 +1,26 @@
+name: rpa_landuse_state_transitions
+source:
+  type: parquet
+  path: data.parquet
+description: RPA Land Use state transitions data for ensemble overall scenario
+columns:
+- name: scenario_id
+  type: integer
+- name: scenario_name
+  type: string
+- name: time_step_id
+  type: integer
+- name: time_step_name
+  type: string
+- name: state_name
+  type: string
+- name: region
+  type: string
+- name: subregion
+  type: string
+- name: from_land_use
+  type: string
+- name: to_land_use
+  type: string
+- name: total_area
+  type: float
