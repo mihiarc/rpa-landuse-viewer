@@ -31,19 +31,25 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
     # Output file paths
     output_files = {
         "scenarios": f"{output_dir}/scenarios.parquet",
-        "land_use_categories": f"{output_dir}/land_use_categories.parquet",
-        "time_steps": f"{output_dir}/time_steps.parquet",
+        "landuse_types": f"{output_dir}/landuse_types.parquet",
+        "decades": f"{output_dir}/decades.parquet",
         "counties": f"{output_dir}/counties.parquet",
         "transitions_summary": f"{output_dir}/transitions_summary.parquet",
+        "transitions_changes_only": f"{output_dir}/transitions_changes_only.parquet",
+        "to_urban_transitions": f"{output_dir}/to_urban_transitions.parquet",
+        "from_forest_transitions": f"{output_dir}/from_forest_transitions.parquet",
         "county_transitions": f"{output_dir}/county_transitions.parquet",
+        "county_transitions_changes_only": f"{output_dir}/county_transitions_changes_only.parquet",
+        "county_to_urban": f"{output_dir}/county_to_urban.parquet", 
+        "county_from_forest": f"{output_dir}/county_from_forest.parquet",
         "urbanization_trends": f"{output_dir}/urbanization_trends.parquet"
     }
     
     # Extract reference tables
     print("Extracting reference tables...")
     conn.sql("SELECT * FROM scenarios").write_parquet(output_files["scenarios"])
-    conn.sql("SELECT * FROM land_use_categories").write_parquet(output_files["land_use_categories"])
-    conn.sql("SELECT * FROM time_steps").write_parquet(output_files["time_steps"])
+    conn.sql("SELECT * FROM landuse_types").write_parquet(output_files["landuse_types"])
+    conn.sql("SELECT * FROM decades").write_parquet(output_files["decades"])
     conn.sql("SELECT * FROM counties").write_parquet(output_files["counties"])
     
     # Create an aggregated transitions view
@@ -54,21 +60,96 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
             s.gcm, 
             s.rcp,
             s.ssp,
-            ts.time_step_name,
-            ts.start_year,
-            ts.end_year,
-            c1.category_name as from_category,
-            c2.category_name as to_category,
-            SUM(t.area_hundreds_acres) as total_area
-        FROM land_use_transitions t
-        JOIN scenarios s ON t.scenario_id = s.scenario_id
-        JOIN time_steps ts ON t.time_step_id = ts.time_step_id
-        JOIN land_use_categories c1 ON t.from_land_use = c1.category_code
-        JOIN land_use_categories c2 ON t.to_land_use = c2.category_code
+            d.decade_name,
+            d.start_year,
+            d.end_year,
+            l1.landuse_type_name as from_category,
+            l2.landuse_type_name as to_category,
+            SUM(lc.area_hundreds_acres) as total_area
+        FROM landuse_change lc
+        JOIN scenarios s ON lc.scenario_id = s.scenario_id
+        JOIN decades d ON lc.decade_id = d.decade_id
+        JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
+        JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
         GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp, 
-                ts.time_step_name, ts.start_year, ts.end_year, 
-                c1.category_name, c2.category_name
+                d.decade_name, d.start_year, d.end_year, 
+                l1.landuse_type_name, l2.landuse_type_name
     """).write_parquet(output_files["transitions_summary"])
+    
+    # Create an aggregated transitions view with ONLY land use changes (excluding where from_category = to_category)
+    print("Creating transitions summary for only changing land uses...")
+    conn.sql("""
+        SELECT 
+            s.scenario_name,
+            s.gcm, 
+            s.rcp,
+            s.ssp,
+            d.decade_name,
+            d.start_year,
+            d.end_year,
+            l1.landuse_type_name as from_category,
+            l2.landuse_type_name as to_category,
+            SUM(lc.area_hundreds_acres) as total_area
+        FROM landuse_change lc
+        JOIN scenarios s ON lc.scenario_id = s.scenario_id
+        JOIN decades d ON lc.decade_id = d.decade_id
+        JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
+        JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
+        WHERE l1.landuse_type_name != l2.landuse_type_name
+        GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp, 
+                d.decade_name, d.start_year, d.end_year, 
+                l1.landuse_type_name, l2.landuse_type_name
+    """).write_parquet(output_files["transitions_changes_only"])
+    
+    # Create transitions TO Urban only
+    print("Creating transitions TO Urban summary...")
+    conn.sql("""
+        SELECT 
+            s.scenario_name,
+            s.gcm, 
+            s.rcp,
+            s.ssp,
+            d.decade_name,
+            d.start_year,
+            d.end_year,
+            l1.landuse_type_name as from_category,
+            'Urban' as to_category,
+            SUM(lc.area_hundreds_acres) as total_area
+        FROM landuse_change lc
+        JOIN scenarios s ON lc.scenario_id = s.scenario_id
+        JOIN decades d ON lc.decade_id = d.decade_id
+        JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
+        JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
+        WHERE lc.to_landuse = 'ur' AND lc.from_landuse != 'ur'
+        GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp, 
+                d.decade_name, d.start_year, d.end_year, 
+                l1.landuse_type_name
+    """).write_parquet(output_files["to_urban_transitions"])
+    
+    # Create transitions FROM Forest only
+    print("Creating transitions FROM Forest summary...")
+    conn.sql("""
+        SELECT 
+            s.scenario_name,
+            s.gcm, 
+            s.rcp,
+            s.ssp,
+            d.decade_name,
+            d.start_year,
+            d.end_year,
+            'Forest' as from_category,
+            l2.landuse_type_name as to_category,
+            SUM(lc.area_hundreds_acres) as total_area
+        FROM landuse_change lc
+        JOIN scenarios s ON lc.scenario_id = s.scenario_id
+        JOIN decades d ON lc.decade_id = d.decade_id
+        JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
+        JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
+        WHERE lc.from_landuse = 'fr' AND lc.to_landuse != 'fr'
+        GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp, 
+                d.decade_name, d.start_year, d.end_year, 
+                l2.landuse_type_name
+    """).write_parquet(output_files["from_forest_transitions"])
     
     # Create a county-level aggregation
     print("Creating county-level transitions...")
@@ -78,39 +159,111 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
             co.county_name,
             co.state_name,
             s.scenario_name,
-            ts.time_step_name,
-            c1.category_name as from_category,
-            c2.category_name as to_category,
-            SUM(t.area_hundreds_acres) as total_area
-        FROM land_use_transitions t
-        JOIN counties co ON t.fips_code = co.fips_code
-        JOIN scenarios s ON t.scenario_id = s.scenario_id
-        JOIN time_steps ts ON t.time_step_id = ts.time_step_id
-        JOIN land_use_categories c1 ON t.from_land_use = c1.category_code
-        JOIN land_use_categories c2 ON t.to_land_use = c2.category_code
+            d.decade_name,
+            l1.landuse_type_name as from_category,
+            l2.landuse_type_name as to_category,
+            SUM(lc.area_hundreds_acres) as total_area
+        FROM landuse_change lc
+        JOIN counties co ON lc.fips_code = co.fips_code
+        JOIN scenarios s ON lc.scenario_id = s.scenario_id
+        JOIN decades d ON lc.decade_id = d.decade_id
+        JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
+        JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
         GROUP BY co.fips_code, co.county_name, co.state_name,
-                s.scenario_name, ts.time_step_name, 
-                c1.category_name, c2.category_name
+                s.scenario_name, d.decade_name, 
+                l1.landuse_type_name, l2.landuse_type_name
     """).write_parquet(output_files["county_transitions"])
+    
+    # Create a county-level aggregation with ONLY land use changes
+    print("Creating county-level transitions for only changing land uses...")
+    conn.sql("""
+        SELECT 
+            co.fips_code,
+            co.county_name,
+            co.state_name,
+            s.scenario_name,
+            d.decade_name,
+            l1.landuse_type_name as from_category,
+            l2.landuse_type_name as to_category,
+            SUM(lc.area_hundreds_acres) as total_area
+        FROM landuse_change lc
+        JOIN counties co ON lc.fips_code = co.fips_code
+        JOIN scenarios s ON lc.scenario_id = s.scenario_id
+        JOIN decades d ON lc.decade_id = d.decade_id
+        JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
+        JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
+        WHERE l1.landuse_type_name != l2.landuse_type_name
+        GROUP BY co.fips_code, co.county_name, co.state_name,
+                s.scenario_name, d.decade_name, 
+                l1.landuse_type_name, l2.landuse_type_name
+    """).write_parquet(output_files["county_transitions_changes_only"])
+    
+    # Create county-level transitions TO Urban
+    print("Creating county-level transitions TO Urban...")
+    conn.sql("""
+        SELECT 
+            co.fips_code,
+            co.county_name,
+            co.state_name,
+            s.scenario_name,
+            d.decade_name,
+            l1.landuse_type_name as from_category,
+            'Urban' as to_category,
+            SUM(lc.area_hundreds_acres) as total_area
+        FROM landuse_change lc
+        JOIN counties co ON lc.fips_code = co.fips_code
+        JOIN scenarios s ON lc.scenario_id = s.scenario_id
+        JOIN decades d ON lc.decade_id = d.decade_id
+        JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
+        JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
+        WHERE lc.to_landuse = 'ur' AND lc.from_landuse != 'ur'
+        GROUP BY co.fips_code, co.county_name, co.state_name,
+                s.scenario_name, d.decade_name, 
+                l1.landuse_type_name
+    """).write_parquet(output_files["county_to_urban"])
+    
+    # Create county-level transitions FROM Forest
+    print("Creating county-level transitions FROM Forest...")
+    conn.sql("""
+        SELECT 
+            co.fips_code,
+            co.county_name,
+            co.state_name,
+            s.scenario_name,
+            d.decade_name,
+            'Forest' as from_category,
+            l2.landuse_type_name as to_category,
+            SUM(lc.area_hundreds_acres) as total_area
+        FROM landuse_change lc
+        JOIN counties co ON lc.fips_code = co.fips_code
+        JOIN scenarios s ON lc.scenario_id = s.scenario_id
+        JOIN decades d ON lc.decade_id = d.decade_id
+        JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
+        JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
+        WHERE lc.from_landuse = 'fr' AND lc.to_landuse != 'fr'
+        GROUP BY co.fips_code, co.county_name, co.state_name,
+                s.scenario_name, d.decade_name, 
+                l2.landuse_type_name
+    """).write_parquet(output_files["county_from_forest"])
     
     # Create a time series view for analyzing trends
     print("Creating urbanization trends...")
     conn.sql("""
         SELECT 
             s.scenario_name,
-            ts.time_step_name,
-            ts.start_year,
-            SUM(CASE WHEN t.from_land_use = 'fr' AND t.to_land_use = 'ur' 
-                THEN t.area_hundreds_acres ELSE 0 END) as forest_to_urban,
-            SUM(CASE WHEN t.from_land_use = 'cr' AND t.to_land_use = 'ur' 
-                THEN t.area_hundreds_acres ELSE 0 END) as cropland_to_urban,
-            SUM(CASE WHEN t.from_land_use = 'ps' AND t.to_land_use = 'ur' 
-                THEN t.area_hundreds_acres ELSE 0 END) as pasture_to_urban
-        FROM land_use_transitions t
-        JOIN scenarios s ON t.scenario_id = s.scenario_id
-        JOIN time_steps ts ON t.time_step_id = ts.time_step_id
-        GROUP BY s.scenario_name, ts.time_step_name, ts.start_year
-        ORDER BY s.scenario_name, ts.start_year
+            d.decade_name,
+            d.start_year,
+            SUM(CASE WHEN lc.from_landuse = 'fr' AND lc.to_landuse = 'ur' 
+                THEN lc.area_hundreds_acres ELSE 0 END) as forest_to_urban,
+            SUM(CASE WHEN lc.from_landuse = 'cr' AND lc.to_landuse = 'ur' 
+                THEN lc.area_hundreds_acres ELSE 0 END) as cropland_to_urban,
+            SUM(CASE WHEN lc.from_landuse = 'ps' AND lc.to_landuse = 'ur' 
+                THEN lc.area_hundreds_acres ELSE 0 END) as pasture_to_urban
+        FROM landuse_change lc
+        JOIN scenarios s ON lc.scenario_id = s.scenario_id
+        JOIN decades d ON lc.decade_id = d.decade_id
+        GROUP BY s.scenario_name, d.decade_name, d.start_year
+        ORDER BY s.scenario_name, d.start_year
     """).write_parquet(output_files["urbanization_trends"])
     
     # Close the database connection
@@ -124,11 +277,15 @@ def get_api_key():
     """Get the API key from environment variables."""
     load_dotenv(dotenv_path=".env")
     
-    api_key = os.getenv("OPENAI_API_KEY")
+    # Try PandasAI specific key first, then fallback to OpenAI key
+    api_key = os.getenv("PANDABI_API_KEY")
+    if not api_key:
+        api_key = os.getenv("OPENAI_API_KEY")
+        
     if not api_key:
         raise ValueError(
             "No API key found in .env file. "
-            "Please create a .env file with your OPENAI_API_KEY."
+            "Please create a .env file with your PANDABI_API_KEY."
         )
     
     return api_key
@@ -159,15 +316,41 @@ def create_semantic_layers(parquet_dir="land_use_parquet", org_path="rpa-landuse
     
     # Paths for the parquet files
     transitions_parquet = f"{parquet_dir}/transitions_summary.parquet"
+    transitions_changes_parquet = f"{parquet_dir}/transitions_changes_only.parquet"
+    to_urban_parquet = f"{parquet_dir}/to_urban_transitions.parquet"
+    from_forest_parquet = f"{parquet_dir}/from_forest_transitions.parquet"
+    
     county_parquet = f"{parquet_dir}/county_transitions.parquet"
+    county_changes_parquet = f"{parquet_dir}/county_transitions_changes_only.parquet"
+    county_to_urban_parquet = f"{parquet_dir}/county_to_urban.parquet"
+    county_from_forest_parquet = f"{parquet_dir}/county_from_forest.parquet"
+    
     urbanization_parquet = f"{parquet_dir}/urbanization_trends.parquet"
     
     # Load the datasets
     print(f"Loading data from {transitions_parquet}")
     transitions_df = pd.read_parquet(transitions_parquet)
     
+    print(f"Loading data from {transitions_changes_parquet}")
+    transitions_changes_df = pd.read_parquet(transitions_changes_parquet)
+    
+    print(f"Loading data from {to_urban_parquet}")
+    to_urban_df = pd.read_parquet(to_urban_parquet)
+    
+    print(f"Loading data from {from_forest_parquet}")
+    from_forest_df = pd.read_parquet(from_forest_parquet)
+    
     print(f"Loading data from {county_parquet}")
     county_df = pd.read_parquet(county_parquet)
+    
+    print(f"Loading data from {county_changes_parquet}")
+    county_changes_df = pd.read_parquet(county_changes_parquet)
+    
+    print(f"Loading data from {county_to_urban_parquet}")
+    county_to_urban_df = pd.read_parquet(county_to_urban_parquet)
+    
+    print(f"Loading data from {county_from_forest_parquet}")
+    county_from_forest_df = pd.read_parquet(county_from_forest_parquet)
     
     print(f"Loading data from {urbanization_parquet}")
     urbanization_df = pd.read_parquet(urbanization_parquet)
@@ -179,11 +362,47 @@ def create_semantic_layers(parquet_dir="land_use_parquet", org_path="rpa-landuse
         config={"llm": llm, "name": "Land Use Transitions"}
     )
     
+    print("Creating semantic layer for transitions with changes only...")
+    transitions_changes_smart_df = SmartDataframe(
+        transitions_changes_df,
+        config={"llm": llm, "name": "Land Use Transitions - Changes Only"}
+    )
+    
+    print("Creating semantic layer for transitions TO Urban...")
+    to_urban_smart_df = SmartDataframe(
+        to_urban_df,
+        config={"llm": llm, "name": "Transitions TO Urban"}
+    )
+    
+    print("Creating semantic layer for transitions FROM Forest...")
+    from_forest_smart_df = SmartDataframe(
+        from_forest_df,
+        config={"llm": llm, "name": "Transitions FROM Forest"}
+    )
+    
     # Create county-level transitions semantic layer
     print("Creating semantic layer for county transitions...")
     county_smart_df = SmartDataframe(
         county_df,
         config={"llm": llm, "name": "County Land Use Transitions"}
+    )
+    
+    print("Creating semantic layer for county transitions with changes only...")
+    county_changes_smart_df = SmartDataframe(
+        county_changes_df,
+        config={"llm": llm, "name": "County Land Use Transitions - Changes Only"}
+    )
+    
+    print("Creating semantic layer for county transitions TO Urban...")
+    county_to_urban_smart_df = SmartDataframe(
+        county_to_urban_df,
+        config={"llm": llm, "name": "County Transitions TO Urban"}
+    )
+    
+    print("Creating semantic layer for county transitions FROM Forest...")
+    county_from_forest_smart_df = SmartDataframe(
+        county_from_forest_df,
+        config={"llm": llm, "name": "County Transitions FROM Forest"}
     )
     
     # Create urbanization trends semantic layer
@@ -196,6 +415,12 @@ def create_semantic_layers(parquet_dir="land_use_parquet", org_path="rpa-landuse
     # Return the created SmartDataframes
     return {
         "transitions": transitions_smart_df,
+        "transitions_changes": transitions_changes_smart_df,
+        "to_urban": to_urban_smart_df,
+        "from_forest": from_forest_smart_df,
         "county": county_smart_df,
+        "county_changes": county_changes_smart_df,
+        "county_to_urban": county_to_urban_smart_df,
+        "county_from_forest": county_from_forest_smart_df,
         "urbanization": urbanization_smart_df
     } 
