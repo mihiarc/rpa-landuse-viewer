@@ -41,6 +41,5 @@ venv/
 !data/county.geo.json
 
 # archive
-dev/
 data/
-dev
+logs/pandasai.log
