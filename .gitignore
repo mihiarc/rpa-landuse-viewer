@@ -43,6 +43,8 @@ coverage.xml
 data/
 data/raw/
 data/database/
+data/database/rpa_landuse_duck.db
+docs/rpa_text/
 
 # Dependency directories
 node_modules/
