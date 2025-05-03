@@ -78,6 +78,60 @@ DROP TABLE table_name;
 
 -- Drop a table only if it exists
 DROP TABLE IF EXISTS table_name;
+
+-- Rename a table
+ALTER TABLE current_table_name RENAME TO new_table_name;
+
+-- Example: Rename a temporary table
+ALTER TABLE temp_counties RENAME TO counties;
+
+-- Rename a column in a table
+ALTER TABLE table_name RENAME COLUMN old_column_name TO new_column_name;
+```
+
+## Table Constraints
+
+```sql
+-- Creating a table with a UNIQUE constraint
+CREATE TABLE scenarios (
+    scenario_id INTEGER PRIMARY KEY,
+    scenario_name VARCHAR UNIQUE,  -- Single column unique constraint
+    gcm VARCHAR,
+    rcp VARCHAR,
+    ssp VARCHAR
+);
+
+-- Creating a table with a multi-column UNIQUE constraint
+CREATE TABLE counties (
+    fips_code VARCHAR PRIMARY KEY,
+    county_name VARCHAR,
+    state_name VARCHAR,
+    state_fips VARCHAR,
+    region VARCHAR,
+    UNIQUE(county_name, state_name)  -- Composite unique constraint
+);
+
+-- Adding a UNIQUE constraint to an existing table
+ALTER TABLE scenarios ADD CONSTRAINT unique_scenario_name UNIQUE(scenario_name);
+
+-- Adding a composite UNIQUE constraint
+ALTER TABLE time_steps ADD CONSTRAINT unique_year_range UNIQUE(start_year, end_year);
+
+-- Checking what would violate a UNIQUE constraint
+SELECT scenario_name, COUNT(*) 
+FROM scenarios 
+GROUP BY scenario_name 
+HAVING COUNT(*) > 1;
+
+-- Removing duplicate rows before adding a UNIQUE constraint
+WITH numbered_rows AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY scenario_name ORDER BY scenario_id) as rn
+  FROM scenarios
+)
+DELETE FROM scenarios 
+WHERE scenario_id IN (
+  SELECT scenario_id FROM numbered_rows WHERE rn > 1
+);
 ```
 
 ## Exporting Data
