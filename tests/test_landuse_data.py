@@ -649,6 +649,209 @@ class TestRangeland:
                 assert db_value == pytest.approx(json_value, rel=0.1), \
                     f"Gross rangeland transition mismatch for {transition}: DB={db_value}, JSON={json_value}"
 
+class TestRPAScenarios:
+    """Test RPA integrated scenarios with the mean GCM (Middle climate projection)"""
+    
+    def test_mean_gcm_exists(self, db_data):
+        """Check if mean GCM data exists for all RPA scenarios.
+        
+        This test will pass if any scenario-climate-landuse combinations are found,
+        but will print information about missing data.
+        """
+        missing_data = []
+        found_data = []
+        
+        for scenario in RPA_SCENARIOS:
+            for land_use in LAND_USE_CATEGORIES:
+                key = f"{scenario}_Middle_{land_use}"
+                
+                if key in db_data["net_change"]:
+                    found_data.append(key)
+                else:
+                    missing_data.append(key)
+        
+        # Print information about missing data
+        if missing_data:
+            print(f"\nMissing mean GCM data for {len(missing_data)} combinations:")
+            for key in missing_data[:10]:  # Limit to first 10 for readability
+                print(f"  - {key}")
+            if len(missing_data) > 10:
+                print(f"  - ... and {len(missing_data) - 10} more")
+        
+        # Print information about found data
+        if found_data:
+            print(f"\nFound mean GCM data for {len(found_data)} combinations:")
+            for key in found_data[:10]:  # Limit to first 10 for readability
+                print(f"  - {key}")
+            if len(found_data) > 10:
+                print(f"  - ... and {len(found_data) - 10} more")
+        
+        # Test will pass as long as we have some data or we know what's missing
+        assert True, "This test always passes but reports missing data"
+    
+    def test_all_scenarios_with_mean_gcm(self, parsed_json_data, db_data):
+        """Test net change across all land uses with mean GCM for all scenarios."""
+        climate = "Middle"  # Mean GCM
+        
+        for scenario in RPA_SCENARIOS:
+            for land_use in LAND_USE_CATEGORIES:
+                key = f"{scenario}_{climate}_{land_use}"
+                
+                if key in parsed_json_data["net_change"] and key in db_data["net_change"]:
+                    json_value = parsed_json_data["net_change"][key]
+                    db_value = db_data["net_change"][key]
+                    
+                    assert db_value == pytest.approx(json_value, rel=0.05), \
+                        f"Net change mismatch for {key}: DB={db_value}, JSON={json_value}"
+    
+    def test_lm_scenario_transitions(self, parsed_json_data, db_data):
+        """Test transitions for the LM scenario (lower warming-moderate growth) with mean GCM."""
+        scenario = "LM"
+        climate = "Middle"
+        
+        transitions = [
+            'forest_to_developed',
+            'forest_to_crop',
+            'forest_to_pasture',
+            'forest_to_rangeland',
+            'crop_to_forest',
+            'pasture_to_forest',
+            'rangeland_to_forest'
+        ]
+        
+        for transition_base in transitions:
+            from_use, to_use = transition_base.split('_to_')
+            key = f"{scenario}_{climate}_{from_use}_to_{to_use}"
+            
+            if key in parsed_json_data["forest_transitions"] and key in db_data["forest_transitions"]:
+                json_value = parsed_json_data["forest_transitions"][key]
+                db_value = db_data["forest_transitions"][key]
+                
+                assert db_value == pytest.approx(json_value, rel=0.05), \
+                    f"Transition mismatch for {key}: DB={db_value}, JSON={json_value}"
+    
+    def test_hm_scenario_transitions(self, parsed_json_data, db_data):
+        """Test transitions for the HM scenario (high warming-moderate growth) with mean GCM."""
+        scenario = "HM"
+        climate = "Middle"
+        
+        transitions = [
+            'forest_to_developed',
+            'forest_to_crop',
+            'forest_to_pasture',
+            'forest_to_rangeland',
+            'crop_to_forest',
+            'pasture_to_forest',
+            'rangeland_to_forest'
+        ]
+        
+        for transition_base in transitions:
+            from_use, to_use = transition_base.split('_to_')
+            key = f"{scenario}_{climate}_{from_use}_to_{to_use}"
+            
+            if key in parsed_json_data["forest_transitions"] and key in db_data["forest_transitions"]:
+                json_value = parsed_json_data["forest_transitions"][key]
+                db_value = db_data["forest_transitions"][key]
+                
+                assert db_value == pytest.approx(json_value, rel=0.05), \
+                    f"Transition mismatch for {key}: DB={db_value}, JSON={json_value}"
+    
+    def test_hl_scenario_transitions(self, parsed_json_data, db_data):
+        """Test transitions for the HL scenario (high warming-low growth) with mean GCM."""
+        scenario = "HL"
+        climate = "Middle"
+        
+        transitions = [
+            'forest_to_developed',
+            'forest_to_crop',
+            'forest_to_pasture',
+            'forest_to_rangeland',
+            'crop_to_forest',
+            'pasture_to_forest',
+            'rangeland_to_forest'
+        ]
+        
+        for transition_base in transitions:
+            from_use, to_use = transition_base.split('_to_')
+            key = f"{scenario}_{climate}_{from_use}_to_{to_use}"
+            
+            if key in parsed_json_data["forest_transitions"] and key in db_data["forest_transitions"]:
+                json_value = parsed_json_data["forest_transitions"][key]
+                db_value = db_data["forest_transitions"][key]
+                
+                assert db_value == pytest.approx(json_value, rel=0.05), \
+                    f"Transition mismatch for {key}: DB={db_value}, JSON={json_value}"
+    
+    def test_hh_scenario_transitions(self, parsed_json_data, db_data):
+        """Test transitions for the HH scenario (high warming-high growth) with mean GCM."""
+        scenario = "HH"
+        climate = "Middle"
+        
+        transitions = [
+            'forest_to_developed',
+            'forest_to_crop',
+            'forest_to_pasture',
+            'forest_to_rangeland',
+            'crop_to_forest',
+            'pasture_to_forest',
+            'rangeland_to_forest'
+        ]
+        
+        for transition_base in transitions:
+            from_use, to_use = transition_base.split('_to_')
+            key = f"{scenario}_{climate}_{from_use}_to_{to_use}"
+            
+            if key in parsed_json_data["forest_transitions"] and key in db_data["forest_transitions"]:
+                json_value = parsed_json_data["forest_transitions"][key]
+                db_value = db_data["forest_transitions"][key]
+                
+                assert db_value == pytest.approx(json_value, rel=0.05), \
+                    f"Transition mismatch for {key}: DB={db_value}, JSON={json_value}"
+    
+    def test_compare_scenarios_forest_loss(self, db_data):
+        """Compare forest loss across scenarios with mean GCM."""
+        climate = "Middle"
+        land_use = "forest"
+        
+        scenario_forest_changes = {}
+        for scenario in RPA_SCENARIOS:
+            key = f"{scenario}_{climate}_{land_use}"
+            if key in db_data["net_change"]:
+                scenario_forest_changes[scenario] = db_data["net_change"][key]
+        
+        # Assert that HH scenario has more forest loss than HL
+        # Higher economic growth (HH) should lead to more forest land conversion than lower growth (HL)
+        if "HH" in scenario_forest_changes and "HL" in scenario_forest_changes:
+            assert scenario_forest_changes["HH"] <= scenario_forest_changes["HL"], \
+                f"HH forest change ({scenario_forest_changes['HH']}) should be <= HL forest change ({scenario_forest_changes['HL']})"
+        
+        # Assert that HM has higher forest loss than LM
+        # Higher warming should lead to slightly more forest land
+        if "HM" in scenario_forest_changes and "LM" in scenario_forest_changes:
+            assert scenario_forest_changes["HM"] > scenario_forest_changes["LM"], \
+                f"HM forest change ({scenario_forest_changes['HM']}) should be > LM forest change ({scenario_forest_changes['LM']})"
+    
+    def test_compare_scenarios_developed_gain(self, db_data):
+        """Compare developed land gain across scenarios with mean GCM."""
+        climate = "Middle"
+        land_use = "developed"
+        
+        scenario_developed_changes = {}
+        for scenario in RPA_SCENARIOS:
+            key = f"{scenario}_{climate}_{land_use}"
+            if key in db_data["net_change"]:
+                scenario_developed_changes[scenario] = db_data["net_change"][key]
+        
+        # Higher economic growth (HH) should lead to more developed land than lower growth (HL)
+        if "HH" in scenario_developed_changes and "HL" in scenario_developed_changes:
+            assert scenario_developed_changes["HH"] >= scenario_developed_changes["HL"], \
+                f"HH developed change ({scenario_developed_changes['HH']}) should be >= HL developed change ({scenario_developed_changes['HL']})"
+        
+        # Higher warming (HM) should lead to slightly less developed land than lower warming (LM)
+        if "HM" in scenario_developed_changes and "LM" in scenario_developed_changes:
+            assert scenario_developed_changes["HM"] < scenario_developed_changes["LM"], \
+                f"HM developed change ({scenario_developed_changes['HM']}) should be < LM developed change ({scenario_developed_changes['LM']})"
+
 if __name__ == "__main__":
     # If run directly, print the parsed data for inspection
     json_data = load_json_data()

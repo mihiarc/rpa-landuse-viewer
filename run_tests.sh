@@ -47,16 +47,25 @@ for arg in "$@"; do
       SPECIFIC_TEST="TestRangeland"
       shift
       ;;
+    -s|--scenarios)
+      SPECIFIC_TEST="TestRPAScenarios"
+      shift
+      ;;
+    *)
+      # Unknown option
+      echo -e "${RED}Unknown option: $arg${NC}"
+      echo "Usage: ./run_tests.sh [-v|--verbose] [-q|--quick] [-f|--forest] [-d|--developed] [-c|--crop] [-p|--pasture] [-r|--rangeland] [-s|--scenarios]"
+      exit 1
+      ;;
   esac
 done
 
 # Activate the virtual environment
-if [ -d ".venv/bin" ]; then
-    echo -e "${BLUE}Activating virtual environment...${NC}"
-    source .venv/bin/activate
+if [ -d ".venv" ]; then
+  echo -e "${YELLOW}Activating virtual environment...${NC}"
+  source .venv/bin/activate
 else
-    echo -e "${YELLOW}Virtual environment not found at .venv/bin.${NC}"
-    echo -e "${YELLOW}Using system Python.${NC}"
+  echo -e "${YELLOW}No virtual environment found at .venv. Using system Python.${NC}"
 fi
 
 # Print Python and package versions
@@ -69,44 +78,37 @@ fi
 # Ensure we're using the correct Python with src in path
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 
-# Build the pytest command
+# Prepare pytest command
 PYTEST_CMD="python -m pytest"
 
-# Add verbosity based on arguments
+# Add verbosity
 if [ $VERBOSE -eq 1 ]; then
-    PYTEST_CMD="$PYTEST_CMD -vv"
+  PYTEST_CMD="$PYTEST_CMD -vv"
 else
-    PYTEST_CMD="$PYTEST_CMD -v"
+  PYTEST_CMD="$PYTEST_CMD -v"
 fi
 
-# Add specific test if specified
+# Add specific test if provided
 if [ -n "$SPECIFIC_TEST" ]; then
-    echo -e "${BLUE}Running only $SPECIFIC_TEST tests${NC}"
-    PYTEST_CMD="$PYTEST_CMD tests/test_landuse_data.py::$SPECIFIC_TEST"
+  PYTEST_CMD="$PYTEST_CMD tests/test_landuse_data.py::$SPECIFIC_TEST"
 else
-    PYTEST_CMD="$PYTEST_CMD tests/"
+  PYTEST_CMD="$PYTEST_CMD tests/"
 fi
 
-# Add quick mode which runs a subset of tests
+# Add quick mode if selected (only test with MRI-CGCM3 climate model)
 if [ $QUICK -eq 1 ]; then
-    echo -e "${BLUE}Running in quick mode (only testing 'Least warm' climate projection)${NC}"
-    PYTEST_CMD="$PYTEST_CMD -k \"Least\""
+  PYTEST_CMD="$PYTEST_CMD -k \"not Middle and not Hot and not Wet and not Dry\""
 fi
 
-# Print the command that will be run
-if [ $VERBOSE -eq 1 ]; then
-    echo -e "${BLUE}Running command:${NC} $PYTEST_CMD"
-fi
-
-# Run the tests
-echo -e "${BLUE}Running tests...${NC}"
+# Run tests
+echo -e "${YELLOW}Running tests with: ${PYTEST_CMD}${NC}"
 eval $PYTEST_CMD
 
-# Check the result
+# Check exit status
 if [ $? -eq 0 ]; then
-    echo -e "${GREEN}All tests passed!${NC}"
-    exit 0
+  echo -e "${GREEN}All tests passed!${NC}"
+  exit 0
 else
-    echo -e "${RED}Some tests failed.${NC}"
-    exit 1
+  echo -e "${RED}Some tests failed!${NC}"
+  exit 1
 fi 

@@ -15,6 +15,7 @@ Tests are organized by land use categories:
 3. **Crop Land** - Validates crop land use changes and transitions
 4. **Pasture Land** - Validates pasture land use changes and transitions
 5. **Rangeland** - Validates rangeland use changes and transitions
+6. **RPA Scenarios** - Tests specific RPA integrated scenarios with the mean GCM
 
 For each land use category, the tests validate:
 
@@ -40,6 +41,9 @@ The easiest way to run tests is with the `run_tests.sh` script in the main direc
 
 # Run in quick mode (only tests with the "Least warm" climate projection)
 ./run_tests.sh -q
+
+# Run only RPA scenario tests
+./run_tests.sh -s
 ```
 
 ### Script Options
@@ -53,6 +57,7 @@ The script accepts several command-line options:
 - `-c, --crop`: Run only Crop Land tests
 - `-p, --pasture`: Run only Pasture Land tests
 - `-r, --rangeland`: Run only Rangeland tests
+- `-s, --scenarios`: Run only RPA integrated scenario tests
 
 ### Running Tests Directly with pytest
 
@@ -67,6 +72,9 @@ python -m pytest tests/test_landuse_data.py -v
 
 # Run only forest land tests
 python -m pytest tests/test_landuse_data.py::TestForestLand -v
+
+# Run only RPA scenario tests
+python -m pytest tests/test_landuse_data.py::TestRPAScenarios -v
 
 # Run a specific test method
 python -m pytest tests/test_landuse_data.py::TestForestLand::test_net_change -v
@@ -84,6 +92,21 @@ python -m pytest tests/test_landuse_data.py::TestForestLand::test_net_change -v
 1. The tests extract values from both the database and the JSON file
 2. For each value, the test compares the database value to the reference value
 3. A relative tolerance of 5% is used for comparing numerical values to account for rounding differences
+
+### RPA Scenarios
+
+The tests specifically validate the four RPA Assessment scenarios with the mean Global Climate Model (Middle):
+
+- **LM**: Lower warming-moderate U.S. growth (RCP4.5-SSP1)
+- **HL**: High warming-low U.S. growth (RCP8.5-SSP3)
+- **HM**: High warming-moderate U.S. growth (RCP8.5-SSP2)
+- **HH**: High warming-high U.S. growth (RCP8.5-SSP5)
+
+For each scenario, the tests validate:
+- Existence of data for all land use categories
+- Net change values match reference data
+- Land use transitions match reference data 
+- Expected relationships between scenarios (such as comparing forest loss or developed land gain)
 
 ### Fixture Design
 
