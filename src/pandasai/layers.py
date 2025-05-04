@@ -8,19 +8,29 @@ import pandas as pd
 from pandasai import SmartDataframe
 from pandasai.llm import BambooLLM
 from dotenv import load_dotenv
+from typing import List, Optional
 
 
-def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_use_parquet"):
+def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="semantic_layers/base_analysis", 
+                            scenario_ids: Optional[List[int]] = None):
     """
     Extract data from DuckDB database and save as Parquet files.
     
     Args:
         db_path (str): Path to the DuckDB database file
         output_dir (str): Directory to save Parquet files
+        scenario_ids (List[int], optional): List of scenario IDs to include (default: [21, 22, 23, 24, 25])
         
     Returns:
         dict: Dictionary with paths to the created Parquet files
     """
+    # Use primary scenarios by default if none specified (ensemble mean and RPA integrated scenarios)
+    if scenario_ids is None:
+        scenario_ids = [21, 22, 23, 24, 25]
+    
+    # Create scenario filter for SQL queries
+    scenario_filter = f"WHERE s.scenario_id IN ({','.join(map(str, scenario_ids))})"
+    
     # Create directory for parquet files if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
@@ -47,38 +57,16 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
     
     # Extract reference tables
     print("Extracting reference tables...")
-    conn.sql("SELECT * FROM scenarios").write_parquet(output_files["scenarios"])
+    # Get only the scenarios we want
+    conn.sql(f"SELECT * FROM scenarios WHERE scenario_id IN ({','.join(map(str, scenario_ids))})").write_parquet(output_files["scenarios"])
     conn.sql("SELECT * FROM landuse_types").write_parquet(output_files["landuse_types"])
     conn.sql("SELECT * FROM decades").write_parquet(output_files["decades"])
     conn.sql("SELECT * FROM counties").write_parquet(output_files["counties"])
     
-    # Create an aggregated transitions view
-    print("Creating transitions summary...")
-    conn.sql("""
-        SELECT 
-            s.scenario_name,
-            s.gcm, 
-            s.rcp,
-            s.ssp,
-            d.decade_name,
-            d.start_year,
-            d.end_year,
-            l1.landuse_type_name as from_category,
-            l2.landuse_type_name as to_category,
-            SUM(lc.area_hundreds_acres) as total_area
-        FROM landuse_change lc
-        JOIN scenarios s ON lc.scenario_id = s.scenario_id
-        JOIN decades d ON lc.decade_id = d.decade_id
-        JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
-        JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
-        GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp, 
-                d.decade_name, d.start_year, d.end_year, 
-                l1.landuse_type_name, l2.landuse_type_name
-    """).write_parquet(output_files["transitions_summary"])
     
     # Create an aggregated transitions view with ONLY land use changes (excluding where from_category = to_category)
     print("Creating transitions summary for only changing land uses...")
-    conn.sql("""
+    conn.sql(f"""
         SELECT 
             s.scenario_name,
             s.gcm, 
@@ -95,7 +83,8 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
         JOIN decades d ON lc.decade_id = d.decade_id
         JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
         JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
-        WHERE l1.landuse_type_name != l2.landuse_type_name
+        {scenario_filter}
+        AND l1.landuse_type_name != l2.landuse_type_name
         GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp, 
                 d.decade_name, d.start_year, d.end_year, 
                 l1.landuse_type_name, l2.landuse_type_name
@@ -103,7 +92,7 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
     
     # Create transitions TO Urban only
     print("Creating transitions TO Urban summary...")
-    conn.sql("""
+    conn.sql(f"""
         SELECT 
             s.scenario_name,
             s.gcm, 
@@ -120,7 +109,8 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
         JOIN decades d ON lc.decade_id = d.decade_id
         JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
         JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
-        WHERE lc.to_landuse = 'ur' AND lc.from_landuse != 'ur'
+        {scenario_filter}
+        AND lc.to_landuse = 'ur' AND lc.from_landuse != 'ur'
         GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp, 
                 d.decade_name, d.start_year, d.end_year, 
                 l1.landuse_type_name
@@ -128,7 +118,7 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
     
     # Create transitions FROM Forest only
     print("Creating transitions FROM Forest summary...")
-    conn.sql("""
+    conn.sql(f"""
         SELECT 
             s.scenario_name,
             s.gcm, 
@@ -145,7 +135,8 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
         JOIN decades d ON lc.decade_id = d.decade_id
         JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
         JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
-        WHERE lc.from_landuse = 'fr' AND lc.to_landuse != 'fr'
+        {scenario_filter}
+        AND lc.from_landuse = 'fr' AND lc.to_landuse != 'fr'
         GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp, 
                 d.decade_name, d.start_year, d.end_year, 
                 l2.landuse_type_name
@@ -153,7 +144,7 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
     
     # Create a county-level aggregation
     print("Creating county-level transitions...")
-    conn.sql("""
+    conn.sql(f"""
         SELECT 
             co.fips_code,
             co.county_name,
@@ -169,6 +160,7 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
         JOIN decades d ON lc.decade_id = d.decade_id
         JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
         JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
+        {scenario_filter}
         GROUP BY co.fips_code, co.county_name, co.state_name,
                 s.scenario_name, d.decade_name, 
                 l1.landuse_type_name, l2.landuse_type_name
@@ -176,7 +168,7 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
     
     # Create a county-level aggregation with ONLY land use changes
     print("Creating county-level transitions for only changing land uses...")
-    conn.sql("""
+    conn.sql(f"""
         SELECT 
             co.fips_code,
             co.county_name,
@@ -192,7 +184,8 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
         JOIN decades d ON lc.decade_id = d.decade_id
         JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
         JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
-        WHERE l1.landuse_type_name != l2.landuse_type_name
+        {scenario_filter}
+        AND l1.landuse_type_name != l2.landuse_type_name
         GROUP BY co.fips_code, co.county_name, co.state_name,
                 s.scenario_name, d.decade_name, 
                 l1.landuse_type_name, l2.landuse_type_name
@@ -200,7 +193,7 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
     
     # Create county-level transitions TO Urban
     print("Creating county-level transitions TO Urban...")
-    conn.sql("""
+    conn.sql(f"""
         SELECT 
             co.fips_code,
             co.county_name,
@@ -216,7 +209,8 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
         JOIN decades d ON lc.decade_id = d.decade_id
         JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
         JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
-        WHERE lc.to_landuse = 'ur' AND lc.from_landuse != 'ur'
+        {scenario_filter}
+        AND lc.to_landuse = 'ur' AND lc.from_landuse != 'ur'
         GROUP BY co.fips_code, co.county_name, co.state_name,
                 s.scenario_name, d.decade_name, 
                 l1.landuse_type_name
@@ -224,7 +218,7 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
     
     # Create county-level transitions FROM Forest
     print("Creating county-level transitions FROM Forest...")
-    conn.sql("""
+    conn.sql(f"""
         SELECT 
             co.fips_code,
             co.county_name,
@@ -240,7 +234,8 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
         JOIN decades d ON lc.decade_id = d.decade_id
         JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
         JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
-        WHERE lc.from_landuse = 'fr' AND lc.to_landuse != 'fr'
+        {scenario_filter}
+        AND lc.from_landuse = 'fr' AND lc.to_landuse != 'fr'
         GROUP BY co.fips_code, co.county_name, co.state_name,
                 s.scenario_name, d.decade_name, 
                 l2.landuse_type_name
@@ -248,7 +243,7 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
     
     # Create a time series view for analyzing trends
     print("Creating urbanization trends...")
-    conn.sql("""
+    conn.sql(f"""
         SELECT 
             s.scenario_name,
             d.decade_name,
@@ -262,6 +257,7 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="land_us
         FROM landuse_change lc
         JOIN scenarios s ON lc.scenario_id = s.scenario_id
         JOIN decades d ON lc.decade_id = d.decade_id
+        {scenario_filter}
         GROUP BY s.scenario_name, d.decade_name, d.start_year
         ORDER BY s.scenario_name, d.start_year
     """).write_parquet(output_files["urbanization_trends"])

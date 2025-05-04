@@ -8,17 +8,11 @@ This script calls the following modules:
 - src.db.analysis_repository.py
 - query_duckdb.py
 
-The base analysis creates the following datasets:
-- land_use_parquet
-- land_use_parquet_with_geometry
-- land_use_parquet_with_geometry_and_crs
-- land_use_parquet_with_geometry_and_crs_and_bounds
-- land_use_parquet_with_geometry_and_crs_and_bounds_and_centroids
-
 """
 
 import os
 import argparse
+from typing import List
 from src.pandasai.layers import extract_data_from_duckdb, create_semantic_layers
 
 
@@ -48,6 +42,18 @@ def main():
         action="store_true",
         help="Skip data extraction and use existing Parquet files"
     )
+    parser.add_argument(
+        "--scenario-ids",
+        type=int,
+        nargs="+",
+        default=[21, 22, 23, 24, 25],
+        help="List of scenario IDs to include (default: 21-25, ensemble mean and RPA integrated scenarios)"
+    )
+    parser.add_argument(
+        "--all-scenarios",
+        action="store_true",
+        help="Process all scenarios instead of only the default ensemble and RPA scenarios"
+    )
     
     args = parser.parse_args()
     
@@ -57,9 +63,16 @@ def main():
     # Extract data from DuckDB if not skipped
     if not args.skip_extraction:
         print("Extracting data from DuckDB...")
+        
+        # Determine scenario IDs to use
+        scenario_ids = None if args.all_scenarios else args.scenario_ids
+        if scenario_ids:
+            print(f"Processing only scenarios {scenario_ids} (ensemble mean and RPA integrated scenarios)")
+        
         output_files = extract_data_from_duckdb(
             db_path=args.db_path,
-            output_dir=args.output_dir
+            output_dir=args.output_dir,
+            scenario_ids=scenario_ids
         )
         print(f"Data extracted to {args.output_dir}/")
     else:
