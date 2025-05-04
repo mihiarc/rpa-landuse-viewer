@@ -40,10 +40,7 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="semanti
     
     # Output file paths
     output_files = {
-        "scenarios": f"{output_dir}/scenarios.parquet",
-        "landuse_types": f"{output_dir}/landuse_types.parquet",
-        "decades": f"{output_dir}/decades.parquet",
-        "counties": f"{output_dir}/counties.parquet",
+        "reference": f"{output_dir}/reference.parquet",
         "transitions_summary": f"{output_dir}/transitions_summary.parquet",
         "transitions_changes_only": f"{output_dir}/transitions_changes_only.parquet",
         "to_urban_transitions": f"{output_dir}/to_urban_transitions.parquet",
@@ -55,14 +52,70 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="semanti
         "urbanization_trends": f"{output_dir}/urbanization_trends.parquet"
     }
     
-    # Extract reference tables
-    print("Extracting reference tables...")
-    # Get only the scenarios we want
-    conn.sql(f"SELECT * FROM scenarios WHERE scenario_id IN ({','.join(map(str, scenario_ids))})").write_parquet(output_files["scenarios"])
-    conn.sql("SELECT * FROM landuse_types").write_parquet(output_files["landuse_types"])
-    conn.sql("SELECT * FROM decades").write_parquet(output_files["decades"])
-    conn.sql("SELECT * FROM counties").write_parquet(output_files["counties"])
+    # Extract reference information (scenarios + domains)
+    print("Extracting reference information...")
+    conn.sql(f"""
+        SELECT 
+            s.scenario_id,
+            s.scenario_name,
+            s.gcm, 
+            s.rcp,
+            s.ssp,
+            'Scenario' as info_type
+        FROM 
+            scenarios s
+        WHERE 
+            s.scenario_id IN ({','.join(map(str, scenario_ids))})
+        
+        UNION ALL
+        
+        SELECT 
+            NULL as scenario_id,
+            landuse_type_name as scenario_name,
+            landuse_type_code as gcm,
+            NULL as rcp,
+            NULL as ssp,
+            'Land Use Type' as info_type
+        FROM 
+            landuse_types
+        
+        UNION ALL
+        
+        SELECT 
+            decade_id as scenario_id,
+            decade_name as scenario_name,
+            start_year::TEXT as gcm,
+            end_year::TEXT as rcp,
+            NULL as ssp,
+            'Time Period' as info_type
+        FROM 
+            decades
+    """).write_parquet(output_files["reference"])
     
+    # Create an aggregated transitions view
+    print("Creating transitions summary...")
+    conn.sql(f"""
+        SELECT 
+            s.scenario_name,
+            s.gcm, 
+            s.rcp,
+            s.ssp,
+            d.decade_name,
+            d.start_year,
+            d.end_year,
+            l1.landuse_type_name as from_category,
+            l2.landuse_type_name as to_category,
+            SUM(lc.area_hundreds_acres) as total_area
+        FROM landuse_change lc
+        JOIN scenarios s ON lc.scenario_id = s.scenario_id
+        JOIN decades d ON lc.decade_id = d.decade_id
+        JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
+        JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
+        {scenario_filter}
+        GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp, 
+                d.decade_name, d.start_year, d.end_year, 
+                l1.landuse_type_name, l2.landuse_type_name
+    """).write_parquet(output_files["transitions_summary"])
     
     # Create an aggregated transitions view with ONLY land use changes (excluding where from_category = to_category)
     print("Creating transitions summary for only changing land uses...")
@@ -296,7 +349,7 @@ def get_llm():
     return BambooLLM(api_key=api_key)
 
 
-def create_semantic_layers(parquet_dir="land_use_parquet", org_path="rpa-landuse"):
+def create_semantic_layers(parquet_dir="semantic_layers/base_analysis", org_path="rpa-landuse"):
     """
     Create semantic layers using PandasAI for the extracted data.
     
@@ -311,6 +364,7 @@ def create_semantic_layers(parquet_dir="land_use_parquet", org_path="rpa-landuse
     llm = get_llm()
     
     # Paths for the parquet files
+    reference_parquet = f"{parquet_dir}/reference.parquet"
     transitions_parquet = f"{parquet_dir}/transitions_summary.parquet"
     transitions_changes_parquet = f"{parquet_dir}/transitions_changes_only.parquet"
     to_urban_parquet = f"{parquet_dir}/to_urban_transitions.parquet"
@@ -324,6 +378,9 @@ def create_semantic_layers(parquet_dir="land_use_parquet", org_path="rpa-landuse
     urbanization_parquet = f"{parquet_dir}/urbanization_trends.parquet"
     
     # Load the datasets
+    print(f"Loading data from {reference_parquet}")
+    reference_df = pd.read_parquet(reference_parquet)
+    
     print(f"Loading data from {transitions_parquet}")
     transitions_df = pd.read_parquet(transitions_parquet)
     
@@ -352,6 +409,12 @@ def create_semantic_layers(parquet_dir="land_use_parquet", org_path="rpa-landuse
     urbanization_df = pd.read_parquet(urbanization_parquet)
     
     # Create SmartDataframes with the data
+    print("Creating semantic layer for reference information...")
+    reference_smart_df = SmartDataframe(
+        reference_df,
+        config={"llm": llm, "name": "Reference Information"}
+    )
+    
     print("Creating semantic layer for transitions summary...")
     transitions_smart_df = SmartDataframe(
         transitions_df,
@@ -410,6 +473,7 @@ def create_semantic_layers(parquet_dir="land_use_parquet", org_path="rpa-landuse
     
     # Return the created SmartDataframes
     return {
+        "reference": reference_smart_df,
         "transitions": transitions_smart_df,
         "transitions_changes": transitions_changes_smart_df,
         "to_urban": to_urban_smart_df,
