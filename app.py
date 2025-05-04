@@ -1,10 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
 import json
-import os
-from pathlib import Path
 
 # Set page configuration
 st.set_page_config(
@@ -14,7 +11,8 @@ st.set_page_config(
 )
 
 # Title and description
-st.title("Resources Planning Act (RPA) Land Use Viewer")
+st.title("2020 Resources Planning Act (RPA) Assessment")
+st.subheader("Land-Use Change Viewer")
 st.markdown("""
 This application visualizes land use transition projections from the USDA Forest Service's Resources Planning Act (RPA) Assessment.
 Explore how land use is expected to change across the United States from 2020 to 2070 under different climate and socioeconomic scenarios.
@@ -23,21 +21,13 @@ Explore how land use is expected to change across the United States from 2020 to
 # Load the parquet files
 @st.cache_data
 def load_parquet_data():
-    data = {
-        "reference": pd.read_parquet("semantic_layers/base_analysis/reference.parquet"),
-        "transitions_summary": pd.read_parquet("semantic_layers/base_analysis/transitions_summary.parquet"),
+    data = {"transitions_summary": pd.read_parquet("semantic_layers/base_analysis/transitions_summary.parquet"),
         "transitions_changes_only": pd.read_parquet("semantic_layers/base_analysis/transitions_changes_only.parquet"),
         "urbanization_trends": pd.read_parquet("semantic_layers/base_analysis/urbanization_trends.parquet"),
         "to_urban_transitions": pd.read_parquet("semantic_layers/base_analysis/to_urban_transitions.parquet"),
         "from_forest_transitions": pd.read_parquet("semantic_layers/base_analysis/from_forest_transitions.parquet"),
         "county_transitions": pd.read_parquet("semantic_layers/base_analysis/county_transitions.parquet")
     }
-    
-    # Extract specific reference dataframes from consolidated reference file
-    reference_df = data["reference"]
-    data["scenarios"] = reference_df[reference_df["info_type"] == "Scenario"]
-    data["landuse_types"] = reference_df[reference_df["info_type"] == "Land Use Type"]
-    data["decades"] = reference_df[reference_df["info_type"] == "Time Period"]
     
     return data
 
@@ -52,7 +42,7 @@ def load_rpa_docs():
         return []
 
 # Main layout with tabs
-tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Urbanization Trends", "Forest Transitions", "Data Explorer"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Overview", "Natural Language Query", "Data Explorer", "Urbanization Trends", "Forest Transitions"])
 
 # Load data
 try:
@@ -66,55 +56,78 @@ except Exception as e:
 with tab1:
     st.header("Land Use Projections Overview")
     
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.subheader("RPA Assessment Scenarios")
-        # Convert object columns to string to avoid PyArrow conversion issues
-        scenarios_df = data["scenarios"].copy()
-        for col in scenarios_df.select_dtypes(include=['object']).columns:
-            scenarios_df[col] = scenarios_df[col].astype(str)
-        st.dataframe(scenarios_df)
-        
-        st.subheader("Land Use Categories")
-        # Convert object columns to string to avoid PyArrow conversion issues
-        landuse_df = data["landuse_types"].copy()
-        for col in landuse_df.select_dtypes(include=['object']).columns:
-            landuse_df[col] = landuse_df[col].astype(str)
-        st.dataframe(landuse_df)
-    
-    with col2:
-        st.subheader("Key Findings from RPA Assessment")
-        st.markdown("""
+    st.markdown("""
         ### Key Findings
-        - Developed land area is projected to increase in the future, while all non-developed land uses are projected to lose area. The most common source of new developed land is forest land.
-        - Forest land area is projected to decrease under all scenarios, although at lower rates than projected by the 2010 Assessment.
+        - Developed land area is projected to increase under all scenarios, with most of the new developed land coming at the expense of forest land.
         - Higher projected population and income growth lead to relatively less forest land, while hotter projected future climates lead to relatively more forest land.
         - Projected future land use change is more sensitive to the variation in economic factors across RPA scenarios than to the variation among climate projections.
         """)
         
-        st.subheader("Time Periods")
-        # Convert object columns to string to avoid PyArrow conversion issues
-        decades_df = data["decades"].copy()
-        for col in decades_df.select_dtypes(include=['object']).columns:
-            decades_df[col] = decades_df[col].astype(str)
-        st.dataframe(decades_df)
+# ---- NATURAL LANGUAGE QUERY TAB ----
+with tab2:
+    st.header("Natural Language Query")
+    
+    st.write("This application is still under development. Please check back soon for updates.")
+
+# ---- DATA EXPLORER TAB ----
+with tab3:
+    st.header("Data Explorer")
+    
+    # Select dataset to explore
+    dataset_options = list(data.keys())
+    selected_dataset = st.selectbox("Select Dataset", options=dataset_options)
+    
+    # Show dataset
+    st.subheader(f"Exploring: {selected_dataset}")
+    selected_df = data[selected_dataset]
+    
+    # Show basic stats
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.metric("Number of Rows", selected_df.shape[0])
+    with col2:
+        st.metric("Number of Columns", selected_df.shape[1])
+    
+    # Show column info
+    st.subheader("Column Information")
+    # Convert object types to string to avoid PyArrow conversion issues
+    col_df = pd.DataFrame({
+        "Column": selected_df.columns,
+        "Type": [str(dtype) for dtype in selected_df.dtypes],
+        "Sample Values": [str(selected_df[col].iloc[0]) if len(selected_df) > 0 else "Empty" for col in selected_df.columns]
+    })
+    st.dataframe(col_df)
+    
+    # Show data
+    st.subheader("Data Preview")
+    # Convert object columns to string to avoid PyArrow conversion issues
+    preview_df = selected_df.head(100).copy()
+    for col in preview_df.select_dtypes(include=['object']).columns:
+        preview_df[col] = preview_df[col].astype(str)
+    st.dataframe(preview_df)
+    
+    # Allow download
+    csv = selected_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Download data as CSV",
+        data=csv,
+        file_name=f'{selected_dataset}.csv',
+        mime='text/csv',
+    )
+
 
 # ---- URBANIZATION TRENDS TAB ----
-with tab2:
+with tab4:
     st.header("Urbanization Trends")
     
     # Filter controls
     st.subheader("Explore Urbanization Trends")
     
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        urbanization_df = data["urbanization_trends"]
-        # Convert to string for display in selectbox
-        scenarios = urbanization_df["scenario_name"].unique().tolist()
-        scenarios = [str(s) for s in scenarios]
-        selected_scenario = st.selectbox("Select Scenario", options=scenarios)
+    urbanization_df = data["urbanization_trends"]
+    # Convert to string for display in selectbox
+    scenarios = urbanization_df["scenario_name"].unique().tolist()
+    scenarios = [str(s) for s in scenarios]
+    selected_scenario = st.selectbox("Select Scenario", options=scenarios)
     
     # Filter data based on selection
     filtered_urban = urbanization_df[urbanization_df["scenario_name"] == selected_scenario]
@@ -163,7 +176,7 @@ with tab2:
     st.pyplot(fig2)
 
 # ---- FOREST TRANSITIONS TAB ----
-with tab3:
+with tab5:
     st.header("Forest Land Transitions")
     
     col1, col2 = st.columns([1, 1])
@@ -237,51 +250,6 @@ with tab3:
     
     st.pyplot(fig4)
 
-# ---- DATA EXPLORER TAB ----
-with tab4:
-    st.header("Data Explorer")
-    
-    # Select dataset to explore
-    dataset_options = list(data.keys())
-    selected_dataset = st.selectbox("Select Dataset", options=dataset_options)
-    
-    # Show dataset
-    st.subheader(f"Exploring: {selected_dataset}")
-    selected_df = data[selected_dataset]
-    
-    # Show basic stats
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        st.metric("Number of Rows", selected_df.shape[0])
-    with col2:
-        st.metric("Number of Columns", selected_df.shape[1])
-    
-    # Show column info
-    st.subheader("Column Information")
-    # Convert object types to string to avoid PyArrow conversion issues
-    col_df = pd.DataFrame({
-        "Column": selected_df.columns,
-        "Type": [str(dtype) for dtype in selected_df.dtypes],
-        "Sample Values": [str(selected_df[col].iloc[0]) if len(selected_df) > 0 else "Empty" for col in selected_df.columns]
-    })
-    st.dataframe(col_df)
-    
-    # Show data
-    st.subheader("Data Preview")
-    # Convert object columns to string to avoid PyArrow conversion issues
-    preview_df = selected_df.head(100).copy()
-    for col in preview_df.select_dtypes(include=['object']).columns:
-        preview_df[col] = preview_df[col].astype(str)
-    st.dataframe(preview_df)
-    
-    # Allow download
-    csv = selected_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="Download data as CSV",
-        data=csv,
-        file_name=f'{selected_dataset}.csv',
-        mime='text/csv',
-    )
 
 # Footer
 st.markdown("---")
