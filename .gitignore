@@ -48,6 +48,7 @@ data/database/rpa_landuse_duck.db
 docs/rpa_text/
 *.parquet
 *.geojson
+./exports/charts/
 
 # Dependency directories
 node_modules/
