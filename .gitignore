@@ -56,6 +56,7 @@ jspm_packages/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+.datasets/
 
 # Log files
 logs/
