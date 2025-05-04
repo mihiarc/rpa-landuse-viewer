@@ -1,7 +1,10 @@
+import os
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import json
+import pandasai as pai
+from pandasai_openai import OpenAI
 
 # Set page configuration
 st.set_page_config(
@@ -65,9 +68,61 @@ with tab1:
         
 # ---- NATURAL LANGUAGE QUERY TAB ----
 with tab2:
-    st.header("Natural Language Query")
-    
-    st.write("This application is still under development. Please check back soon for updates.")
+    st.header("Natural‑Language Query")
+
+    # 1. wrap DataFrame once
+    if "pai_df" not in st.session_state:
+        st.session_state["pai_df"] = pai.DataFrame(
+            data["to_urban_transitions"],
+            name="to_urban_transitions",
+        )
+    df      = st.session_state["pai_df"]
+    raw_df  = data["to_urban_transitions"]
+
+    # 2. LLM client
+    llm = OpenAI(
+        api_token=os.environ["OPENAI_API_KEY"],
+        model="gpt-4o-mini",
+    )
+    pai.config.set({
+        "llm": llm,
+        "instructions": "Answer the user's question specifically with 1 to 2 concise English sentences"
+                        " for a non‑technical audience. Include numerical values in whole numbers with commas."
+                        "Area is in hundred acres."
+                        "These are projections under different climate and socioeconomic scenarios and not predictions."
+    })
+
+    # 3. preview
+    with st.expander("🔎 Preview Table"):
+        st.dataframe(raw_df.tail(10))
+
+    query = st.text_area("🗣️ Ask me anything about this table")
+    debug = st.checkbox("Show generated Python code", value=False)
+    if debug:
+        codebox = st.empty()
+
+    if query:
+        with st.spinner("Running Query…"):
+
+        # 1️⃣  first call – let PandaAI decide; may return a chart path
+            resp_plot = df.chat(
+                query + "\n\nIf a chart helps, include one."
+            )
+
+            # 2️⃣  second call – always get a one‑sentence explanation
+            resp_text = df.chat(query)
+
+    # ── display plot if we got one ─────────────────────────────────────
+    st.image(resp_plot.value, caption="Generated figure",
+                use_container_width=True)
+
+    # ── display narrative sentence ────────────────────────────────────
+    st.write(resp_text.value)
+
+    # 5. optional debug code
+    if debug:
+        codebox.code(resp_text.last_code_executed, language="python")
+
 
 # ---- DATA EXPLORER TAB ----
 with tab3:
