@@ -24,16 +24,16 @@ Explore how land use is expected to change across the United States from 2020 to
 @st.cache_data
 def load_parquet_data():
     data = {
-        "counties": pd.read_parquet("land_use_parquet/counties.parquet"),
-        "decades": pd.read_parquet("land_use_parquet/decades.parquet"),
-        "landuse_types": pd.read_parquet("land_use_parquet/landuse_types.parquet"),
-        "scenarios": pd.read_parquet("land_use_parquet/scenarios.parquet"),
-        "transitions_summary": pd.read_parquet("land_use_parquet/transitions_summary.parquet"),
-        "transitions_changes_only": pd.read_parquet("land_use_parquet/transitions_changes_only.parquet"),
-        "urbanization_trends": pd.read_parquet("land_use_parquet/urbanization_trends.parquet"),
-        "to_urban_transitions": pd.read_parquet("land_use_parquet/to_urban_transitions.parquet"),
-        "from_forest_transitions": pd.read_parquet("land_use_parquet/from_forest_transitions.parquet"),
-        "county_transitions": pd.read_parquet("land_use_parquet/county_transitions.parquet")
+        "counties": pd.read_parquet("semantic_layers/base_analysis/counties.parquet"),
+        "decades": pd.read_parquet("semantic_layers/base_analysis/decades.parquet"),
+        "landuse_types": pd.read_parquet("semantic_layers/base_analysis/landuse_types.parquet"),
+        "scenarios": pd.read_parquet("semantic_layers/base_analysis/scenarios.parquet"),
+        "transitions_summary": pd.read_parquet("semantic_layers/base_analysis/transitions_summary.parquet"),
+        "transitions_changes_only": pd.read_parquet("semantic_layers/base_analysis/transitions_changes_only.parquet"),
+        "urbanization_trends": pd.read_parquet("semantic_layers/base_analysis/urbanization_trends.parquet"),
+        "to_urban_transitions": pd.read_parquet("semantic_layers/base_analysis/to_urban_transitions.parquet"),
+        "from_forest_transitions": pd.read_parquet("semantic_layers/base_analysis/from_forest_transitions.parquet"),
+        "county_transitions": pd.read_parquet("semantic_layers/base_analysis/county_transitions.parquet")
     }
     return data
 
