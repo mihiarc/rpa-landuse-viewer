@@ -24,10 +24,7 @@ Explore how land use is expected to change across the United States from 2020 to
 @st.cache_data
 def load_parquet_data():
     data = {
-        "counties": pd.read_parquet("semantic_layers/base_analysis/counties.parquet"),
-        "decades": pd.read_parquet("semantic_layers/base_analysis/decades.parquet"),
-        "landuse_types": pd.read_parquet("semantic_layers/base_analysis/landuse_types.parquet"),
-        "scenarios": pd.read_parquet("semantic_layers/base_analysis/scenarios.parquet"),
+        "reference": pd.read_parquet("semantic_layers/base_analysis/reference.parquet"),
         "transitions_summary": pd.read_parquet("semantic_layers/base_analysis/transitions_summary.parquet"),
         "transitions_changes_only": pd.read_parquet("semantic_layers/base_analysis/transitions_changes_only.parquet"),
         "urbanization_trends": pd.read_parquet("semantic_layers/base_analysis/urbanization_trends.parquet"),
@@ -35,6 +32,13 @@ def load_parquet_data():
         "from_forest_transitions": pd.read_parquet("semantic_layers/base_analysis/from_forest_transitions.parquet"),
         "county_transitions": pd.read_parquet("semantic_layers/base_analysis/county_transitions.parquet")
     }
+    
+    # Extract specific reference dataframes from consolidated reference file
+    reference_df = data["reference"]
+    data["scenarios"] = reference_df[reference_df["info_type"] == "Scenario"]
+    data["landuse_types"] = reference_df[reference_df["info_type"] == "Land Use Type"]
+    data["decades"] = reference_df[reference_df["info_type"] == "Time Period"]
+    
     return data
 
 # Load RPA documentation
@@ -66,11 +70,17 @@ with tab1:
     
     with col1:
         st.subheader("RPA Assessment Scenarios")
-        scenarios_df = data["scenarios"]
+        # Convert object columns to string to avoid PyArrow conversion issues
+        scenarios_df = data["scenarios"].copy()
+        for col in scenarios_df.select_dtypes(include=['object']).columns:
+            scenarios_df[col] = scenarios_df[col].astype(str)
         st.dataframe(scenarios_df)
         
         st.subheader("Land Use Categories")
-        landuse_df = data["landuse_types"]
+        # Convert object columns to string to avoid PyArrow conversion issues
+        landuse_df = data["landuse_types"].copy()
+        for col in landuse_df.select_dtypes(include=['object']).columns:
+            landuse_df[col] = landuse_df[col].astype(str)
         st.dataframe(landuse_df)
     
     with col2:
@@ -84,7 +94,10 @@ with tab1:
         """)
         
         st.subheader("Time Periods")
-        decades_df = data["decades"]
+        # Convert object columns to string to avoid PyArrow conversion issues
+        decades_df = data["decades"].copy()
+        for col in decades_df.select_dtypes(include=['object']).columns:
+            decades_df[col] = decades_df[col].astype(str)
         st.dataframe(decades_df)
 
 # ---- URBANIZATION TRENDS TAB ----
@@ -98,7 +111,10 @@ with tab2:
     
     with col1:
         urbanization_df = data["urbanization_trends"]
-        selected_scenario = st.selectbox("Select Scenario", options=urbanization_df["scenario_name"].unique())
+        # Convert to string for display in selectbox
+        scenarios = urbanization_df["scenario_name"].unique().tolist()
+        scenarios = [str(s) for s in scenarios]
+        selected_scenario = st.selectbox("Select Scenario", options=scenarios)
     
     # Filter data based on selection
     filtered_urban = urbanization_df[urbanization_df["scenario_name"] == selected_scenario]
@@ -119,7 +135,11 @@ with tab2:
     st.pyplot(fig)
     
     with st.expander("Show Data Table"):
-        st.dataframe(filtered_urban)
+        # Convert object columns to string to avoid PyArrow conversion issues
+        display_df = filtered_urban.copy()
+        for col in display_df.select_dtypes(include=['object']).columns:
+            display_df[col] = display_df[col].astype(str)
+        st.dataframe(display_df)
     
     st.subheader("Top Counties Converting to Urban Land")
     
@@ -150,8 +170,11 @@ with tab3:
     
     with col1:
         from_forest_df = data["from_forest_transitions"]
+        # Convert to string for display in selectbox
+        forest_scenarios = from_forest_df["scenario_name"].unique().tolist()
+        forest_scenarios = [str(s) for s in forest_scenarios]
         selected_scenario_forest = st.selectbox("Select Scenario", 
-                                               options=from_forest_df["scenario_name"].unique(),
+                                               options=forest_scenarios,
                                                key="forest_scenario")
     
     # Filter data
@@ -176,7 +199,11 @@ with tab3:
     st.pyplot(fig3)
     
     with st.expander("Show Data Table"):
-        st.dataframe(filtered_forest)
+        # Convert object columns to string to avoid PyArrow conversion issues
+        display_forest_df = filtered_forest.copy()
+        for col in display_forest_df.select_dtypes(include=['object']).columns:
+            display_forest_df[col] = display_forest_df[col].astype(str)
+        st.dataframe(display_forest_df)
     
     # Add additional information from RPA docs
     st.subheader("Forest Land Projections from RPA Assessment")
@@ -231,16 +258,21 @@ with tab4:
     
     # Show column info
     st.subheader("Column Information")
+    # Convert object types to string to avoid PyArrow conversion issues
     col_df = pd.DataFrame({
         "Column": selected_df.columns,
-        "Type": selected_df.dtypes,
-        "Sample Values": [str(selected_df[col].iloc[0]) for col in selected_df.columns]
+        "Type": [str(dtype) for dtype in selected_df.dtypes],
+        "Sample Values": [str(selected_df[col].iloc[0]) if len(selected_df) > 0 else "Empty" for col in selected_df.columns]
     })
     st.dataframe(col_df)
     
     # Show data
     st.subheader("Data Preview")
-    st.dataframe(selected_df.head(100))
+    # Convert object columns to string to avoid PyArrow conversion issues
+    preview_df = selected_df.head(100).copy()
+    for col in preview_df.select_dtypes(include=['object']).columns:
+        preview_df[col] = preview_df[col].astype(str)
+    st.dataframe(preview_df)
     
     # Allow download
     csv = selected_df.to_csv(index=False).encode('utf-8')
