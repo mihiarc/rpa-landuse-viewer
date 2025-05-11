@@ -279,8 +279,9 @@ with tab5:
             data["Transitions to Urban Land"],
             name="Transitions to Urban Land",
         )
-    df      = st.session_state["pai_df"]
-    raw_df  = df.df.copy()
+    df = st.session_state["pai_df"]
+    # Access the underlying DataFrame correctly
+    raw_df = df.dataframe.copy() if hasattr(df, 'dataframe') else df.copy()
 
     # 2. LLM client
     llm = OpenAI(
