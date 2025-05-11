@@ -10,8 +10,7 @@ from pathlib import Path
 def run_app(args):
     """Run the Streamlit app."""
     import streamlit.web.bootstrap as bootstrap
-    from streamlit.web.bootstrap import StreamlitApp
-
+    
     # Find app.py in the package
     package_dir = Path(__file__).parent.parent.parent
     app_path = package_dir / "app.py"
@@ -20,7 +19,8 @@ def run_app(args):
         print(f"Error: Could not find app.py at {app_path}")
         sys.exit(1)
     
-    bootstrap.run(str(app_path), "", args, flag_options={})
+    # Use the updated Streamlit API
+    bootstrap.run(str(app_path), "", [], {})
 
 def create_semantic_layers(args):
     """Create semantic layers for data analysis."""
