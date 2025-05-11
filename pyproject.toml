@@ -7,15 +7,12 @@ name = "rpa-landuse"
 version = "0.1.0"
 description = "RPA Land Use Projections Viewer"
 readme = "README.md"
-requires-python = ">=3.9,<3.12"
+requires-python = ">=3.11,<3.12"
 license = {text = "MIT"}
 authors = [
     {name = "USDA Forest Service: Resources Planning Act Assessment"}
 ]
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -31,16 +28,13 @@ dependencies = [
     "streamlit>=1.31",
     "httpx>=0.22.0",
     "python-dotenv>=1.0.0",
-    "tqdm>=4.65.0"
-]
-
-[project.optional-dependencies]
-ai = [
+    "tqdm>=4.65.0",
     "pandasai>=2.0.0",
     "openai>=1.2,<2",
     "pandasai-openai>=0.1.5",
     "scipy>=1.8.0",
 ]
+
 dev = [
     "pytest>=7.4.0",
     "flake8>=6.1.0",
