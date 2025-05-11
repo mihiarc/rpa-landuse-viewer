@@ -1,20 +1,20 @@
 # Core data processing libraries
 numpy>=1.22.0,<2.0.0
-pandas>=2.0.0,<2.3.0
-duckdb>=1.0.0
+pandas>=1.5.3,<2.0.0
+duckdb>=0.9.2,<1.0.0
 pyarrow>=10.0.0
-
-# PandasAI and dependencies
-pandasai>=2.0.0
-matplotlib>=3.5.0,<3.8.0
-httpx>=0.22.0
-python-dotenv>=1.0.0
-scipy>=1.8.0
-openai>=1.2,<2
-pandasai-openai>=0.1.5
 
 # Streamlit for interactive visualization
 streamlit>=1.31
 
 # Utilities
 tqdm>=4.65.0
+matplotlib>=3.5.0,<3.8.0
+httpx>=0.22.0
+python-dotenv>=1.0.0
+scipy>=1.8.0
+
+# Optional AI dependencies
+# pandasai>=2.0.0
+# openai>=1.2,<2
+# pandasai-openai>=0.1.5
