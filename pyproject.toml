@@ -29,9 +29,6 @@ dependencies = [
     "httpx>=0.22.0",
     "python-dotenv>=1.0.0",
     "tqdm>=4.65.0",
-    "pandasai>=2.0.0",
-    "openai>=1.2,<2",
-    "pandasai-openai>=0.1.5",
     "scipy>=1.8.0",
 ]
 
