@@ -15,6 +15,6 @@ python-dotenv>=1.0.0
 scipy>=1.8.0
 
 # AI dependencies
-# pandasai>=2.0.0
-# openai>=1.2,<2
-# pandasai-openai>=0.1.5
+pandasai
+openai
+pandasai-openai
