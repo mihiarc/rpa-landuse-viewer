@@ -40,7 +40,7 @@ function setup_venv {
     # Check if virtual environment exists, if not create one
     if [ ! -d ".venv" ]; then
         echo -e "${YELLOW}Creating virtual environment...${RESET}"
-        uv venv .venv
+        python3 -m venv .venv
     fi
 
     # Activate the virtual environment
@@ -48,8 +48,8 @@ function setup_venv {
 
     # Ensure required packages are installed
     echo -e "${YELLOW}Ensuring required packages are installed...${RESET}"
-    uv pip install -r requirements.txt
-    uv pip install pyyaml
+    pip install -r requirements.txt
+    pip install pyyaml
 }
 
 # Function to update counties

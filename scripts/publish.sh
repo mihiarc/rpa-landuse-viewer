@@ -12,12 +12,12 @@ rm -rf build/ dist/ *.egg-info/
 
 # Create and activate virtual environment
 echo "Setting up virtual environment..."
-uv venv
+python3 -m venv .venv
 source .venv/bin/activate
 
 # Install build dependencies
 echo "Installing build dependencies..."
-uv pip install --upgrade build twine
+pip install --upgrade build twine
 
 # Build the package
 echo "Building package..."

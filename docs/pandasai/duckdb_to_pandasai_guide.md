@@ -19,12 +19,11 @@ The DuckDB database (`rpa.db`) contains land use transition data across multiple
 ## Prerequisites
 
 ```bash
-# Create a Python virtual environment with uv
-uv venv .venv
-source .venv/bin/activate
+# Create a Python virtual environment with pip
+python3 -m venv .venv
 
 # Install required packages
-uv pip install duckdb pandas pyarrow pandasai
+pip install duckdb pandas pyarrow pandasai
 ```
 
 ## Extracting Data from DuckDB

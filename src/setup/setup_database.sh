@@ -3,27 +3,16 @@
 
 set -e  # Exit on error
 
-# Initialize Python virtual environment using uv
-echo "Creating virtual environment..."
-if [ ! -d ".venv" ]; then
-    uv venv
-    # If uv is not installed, use this as fallback
-    if [ $? -ne 0 ]; then
-        echo "uv not found, attempting to install it..."
-        pip install uv
-        uv venv
-    fi
-fi
-
-# Activate the virtual environment
+# Initialize Python virtual environment using pip
+python3 -m venv .venv
 source .venv/bin/activate
 
 # Install requirements
 echo "Installing dependencies..."
 # Install the package in development mode
-uv pip install -e .
+pip install -e .
 # Install additional dependencies if needed
-uv pip install duckdb pandas tqdm python-dotenv pyarrow
+pip install duckdb pandas tqdm python-dotenv pyarrow
 
 # Create database directory if not existing
 mkdir -p data/database

@@ -188,7 +188,7 @@ Transitions between five main land use types:
 ### Requirements
 
 - Python 3.11 or higher
-- UV package manager (recommended)
+- Python package manager (pip, recommended)
 - The following Python packages:
   - pandas, numpy
   - duckdb, pyarrow
@@ -205,7 +205,7 @@ The simplest way to set up the environment is to use the provided script:
 ```
 
 This script will:
-1. Create a Python virtual environment using UV
+1. Create a Python virtual environment using pip
 2. Install all required dependencies
 3. Set up the package in development mode
 
@@ -217,7 +217,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install dependencies
-uv pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Data Source
@@ -239,7 +239,7 @@ The simplest way to set up the database is to use the provided script:
 ```
 
 This script will:
-1. Create a Python virtual environment using uv
+1. Create a Python virtual environment using pip
 2. Install required dependencies
 3. Initialize the DuckDB database schema
 4. Import the land use data from the raw JSON file

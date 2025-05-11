@@ -5,7 +5,7 @@ This documentation explains how to use the semantic layers implementation for th
 ## Prerequisites
 
 - Python 3.12 (compatible with 3.8+)
-- UV package manager
+- Python package manager (pip)
 - OpenAI API key (Sign up at [openai.com](https://openai.com/))
 
 ## Setup
@@ -15,7 +15,7 @@ This documentation explains how to use the semantic layers implementation for th
    ./setup_venv.sh
    ```
    This script will:
-   - Create a virtual environment with UV
+   - Create a virtual environment with pip
    - Install all required dependencies
    - Configure the environment for Python 3.12 compatibility
 
