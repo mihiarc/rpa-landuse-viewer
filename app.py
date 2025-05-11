@@ -24,13 +24,32 @@ Explore how land use is expected to change across the United States from 2020 to
 # Load the parquet files
 @st.cache_data
 def load_parquet_data():
-    data = {"transitions_summary": pd.read_parquet("semantic_layers/base_analysis/transitions_summary.parquet"),
-        "transitions_changes_only": pd.read_parquet("semantic_layers/base_analysis/transitions_changes_only.parquet"),
-        "urbanization_trends": pd.read_parquet("semantic_layers/base_analysis/urbanization_trends.parquet"),
-        "to_urban_transitions": pd.read_parquet("semantic_layers/base_analysis/to_urban_transitions.parquet"),
-        "from_forest_transitions": pd.read_parquet("semantic_layers/base_analysis/from_forest_transitions.parquet"),
-        "county_transitions": pd.read_parquet("semantic_layers/base_analysis/county_transitions.parquet")
+    # Load raw data
+    raw_data = {
+        "Average Gross Change Across All Scenarios (2020-2070)": pd.read_parquet("semantic_layers/base_analysis/gross_change_ensemble_all.parquet"),
+        "Urbanization Trends By Decade": pd.read_parquet("semantic_layers/base_analysis/urbanization_trends.parquet"),
+        "Transitions to Urban Land": pd.read_parquet("semantic_layers/base_analysis/to_urban_transitions.parquet"),
+        "Transitions from Forest Land": pd.read_parquet("semantic_layers/base_analysis/from_forest_transitions.parquet"),
+        "County-Level Land Use Transitions": pd.read_parquet("semantic_layers/base_analysis/county_transitions.parquet")
     }
+    
+    # Convert hundred acres to acres for all datasets
+    data = {}
+    for key, df in raw_data.items():
+        df_copy = df.copy()
+        
+        # Convert total_area column if it exists
+        if "total_area" in df_copy.columns:
+            df_copy["total_area"] = df_copy["total_area"] * 100
+            
+        # Convert specific columns for urbanization trends dataset
+        if key == "Urbanization Trends By Decade":
+            area_columns = ["forest_to_urban", "cropland_to_urban", "pasture_to_urban"]
+            for col in area_columns:
+                if col in df_copy.columns:
+                    df_copy[col] = df_copy[col] * 100
+        
+        data[key] = df_copy
     
     return data
 
@@ -45,7 +64,7 @@ def load_rpa_docs():
         return []
 
 # Main layout with tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Overview", "Natural Language Query", "Data Explorer", "Urbanization Trends", "Forest Transitions"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Overview", "Data Explorer", "Urbanization Trends", "Forest Transitions", "Natural Language Query"])
 
 # Load data
 try:
@@ -65,67 +84,9 @@ with tab1:
         - Higher projected population and income growth lead to relatively less forest land, while hotter projected future climates lead to relatively more forest land.
         - Projected future land use change is more sensitive to the variation in economic factors across RPA scenarios than to the variation among climate projections.
         """)
-        
-# ---- NATURAL LANGUAGE QUERY TAB ----
-with tab2:
-    st.header("Natural‑Language Query")
-
-    # 1. wrap DataFrame once
-    if "pai_df" not in st.session_state:
-        st.session_state["pai_df"] = pai.DataFrame(
-            data["to_urban_transitions"],
-            name="to_urban_transitions",
-        )
-    df      = st.session_state["pai_df"]
-    raw_df  = data["to_urban_transitions"]
-
-    # 2. LLM client
-    llm = OpenAI(
-        api_token=os.environ["OPENAI_API_KEY"],
-        model="gpt-4o-mini",
-    )
-    pai.config.set({
-        "llm": llm,
-        "instructions": "Answer the user's question specifically with 1 to 2 concise English sentences"
-                        " for a non‑technical audience. Include numerical values in whole numbers with commas."
-                        "Area is in hundred acres."
-                        "These are projections under different climate and socioeconomic scenarios and not predictions."
-    })
-
-    # 3. preview
-    with st.expander("🔎 Preview Table"):
-        st.dataframe(raw_df.tail(10))
-
-    query = st.text_area("🗣️ Ask me anything about this table")
-    debug = st.checkbox("Show generated Python code", value=False)
-    if debug:
-        codebox = st.empty()
-
-    if query:
-        with st.spinner("Running Query…"):
-
-        # 1️⃣  first call – let PandaAI decide; may return a chart path
-            resp_plot = df.chat(
-                query + "\n\nIf a chart helps, include one."
-            )
-
-            # 2️⃣  second call – always get a one‑sentence explanation
-            resp_text = df.chat(query)
-
-    # ── display plot if we got one ─────────────────────────────────────
-    st.image(resp_plot.value, caption="Generated figure",
-                use_container_width=True)
-
-    # ── display narrative sentence ────────────────────────────────────
-    st.write(resp_text.value)
-
-    # 5. optional debug code
-    if debug:
-        codebox.code(resp_text.last_code_executed, language="python")
-
 
 # ---- DATA EXPLORER TAB ----
-with tab3:
+with tab2:
     st.header("Data Explorer")
     
     # Select dataset to explore
@@ -135,6 +96,9 @@ with tab3:
     # Show dataset
     st.subheader(f"Exploring: {selected_dataset}")
     selected_df = data[selected_dataset]
+    
+    # Add info message about acres conversion
+    st.info("Note: All area values are displayed in acres.")
     
     # Show basic stats
     col1, col2 = st.columns([1, 1])
@@ -172,13 +136,13 @@ with tab3:
 
 
 # ---- URBANIZATION TRENDS TAB ----
-with tab4:
+with tab3:
     st.header("Urbanization Trends")
     
     # Filter controls
     st.subheader("Explore Urbanization Trends")
     
-    urbanization_df = data["urbanization_trends"]
+    urbanization_df = data["Urbanization Trends By Decade"]
     # Convert to string for display in selectbox
     scenarios = urbanization_df["scenario_name"].unique().tolist()
     scenarios = [str(s) for s in scenarios]
@@ -195,7 +159,7 @@ with tab4:
     ax.plot(filtered_urban["decade_name"], filtered_urban["cropland_to_urban"], marker='s', label="Cropland to Urban")
     ax.plot(filtered_urban["decade_name"], filtered_urban["pasture_to_urban"], marker='^', label="Pasture to Urban")
     ax.set_xlabel("Time Period")
-    ax.set_ylabel("Area (hundred acres)")
+    ax.set_ylabel("Acres")
     ax.set_title(f"Land Conversion to Urban Areas: {selected_scenario}")
     ax.legend()
     plt.tight_layout()
@@ -211,8 +175,8 @@ with tab4:
     
     st.subheader("Top Counties Converting to Urban Land")
     
-    # Get county transitions data
-    county_df = data["county_transitions"]
+    # Get county transitions data 
+    county_df = data["County-Level Land Use Transitions"]
     # Filter for urban transitions only (where to_category is 'Urban')
     urban_counties_df = county_df[county_df["to_category"] == "Urban"]
     
@@ -223,7 +187,7 @@ with tab4:
     fig2, ax2 = plt.figure(figsize=(10, 6)), plt.subplot()
     ax2.bar(urban_by_county["county_name"] + ", " + urban_by_county["state_name"], urban_by_county["total_area"])
     ax2.set_xlabel("County")
-    ax2.set_ylabel("Area (hundred acres)")
+    ax2.set_ylabel("Acres")
     ax2.set_title("Top 10 Counties by Urbanization")
     plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
@@ -231,13 +195,13 @@ with tab4:
     st.pyplot(fig2)
 
 # ---- FOREST TRANSITIONS TAB ----
-with tab5:
+with tab4:
     st.header("Forest Land Transitions")
     
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        from_forest_df = data["from_forest_transitions"]
+        from_forest_df = data["Transitions from Forest Land"]
         # Convert to string for display in selectbox
         forest_scenarios = from_forest_df["scenario_name"].unique().tolist()
         forest_scenarios = [str(s) for s in forest_scenarios]
@@ -260,7 +224,7 @@ with tab5:
     fig3, ax3 = plt.figure(figsize=(10, 6)), plt.subplot()
     pivot_forest.plot(kind="bar", ax=ax3)
     ax3.set_xlabel("Time Period")
-    ax3.set_ylabel("Area (hundred acres)")
+    ax3.set_ylabel("Acres")
     ax3.set_title(f"Forest Land Conversion by Destination: {selected_scenario_forest}")
     plt.tight_layout()
     
@@ -288,7 +252,7 @@ with tab5:
     st.subheader("Top Counties with Forest Land Loss")
     
     # Get county transitions with forest as source
-    county_df = data["county_transitions"]
+    county_df = data["County-Level Land Use Transitions"]
     forest_loss_counties = county_df[(county_df["from_category"] == "Forest") & (county_df["to_category"] != "Forest")]
     
     # Group by county and sum total area
@@ -298,13 +262,68 @@ with tab5:
     fig4, ax4 = plt.figure(figsize=(10, 6)), plt.subplot()
     ax4.bar(forest_loss_by_county["county_name"] + ", " + forest_loss_by_county["state_name"], forest_loss_by_county["total_area"])
     ax4.set_xlabel("County")
-    ax4.set_ylabel("Area (hundred acres)")
+    ax4.set_ylabel("Acres")
     ax4.set_title("Top 10 Counties by Forest Land Loss")
     plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
     
     st.pyplot(fig4)
+        
+# ---- NATURAL LANGUAGE QUERY TAB ----
+with tab5:
+    st.header("Natural‑Language Query")
 
+    # 1. wrap DataFrame once
+    if "pai_df" not in st.session_state:
+        st.session_state["pai_df"] = pai.DataFrame(
+            data["Transitions to Urban Land"],
+            name="Transitions to Urban Land",
+        )
+    df      = st.session_state["pai_df"]
+    raw_df  = df.df.copy()
+
+    # 2. LLM client
+    llm = OpenAI(
+        api_token=os.environ["OPENAI_API_KEY"],
+        model="gpt-4o-mini",
+    )
+    pai.config.set({
+        "llm": llm,
+        "instructions": "Answer the user's question specifically with 1 to 2 concise English sentences"
+                        " for a non‑technical audience. Include numerical values in whole numbers with commas."
+                        "Area values are in acres."
+                        "These are projections under different climate and socioeconomic scenarios and not predictions."
+    })
+
+    # 3. preview
+    with st.expander("🔎 Preview Table"):
+        st.dataframe(raw_df.tail(10))
+
+    query = st.text_area("🗣️ Ask me anything about this table")
+    debug = st.checkbox("Show generated Python code", value=False)
+    if debug:
+        codebox = st.empty()
+
+    if query:
+        with st.spinner("Running Query…"):
+            # 1️⃣  first call – let PandaAI decide; may return a chart path
+            resp_plot = df.chat(
+                query + "\n\nIf a chart helps, include one."
+            )
+
+            # 2️⃣  second call – always get a one‑sentence explanation
+            resp_text = df.chat(query)
+
+        # ── display plot if we got one ─────────────────────────────────────
+        st.image(resp_plot.value, caption="Generated figure",
+                use_container_width=True)
+
+        # ── display narrative sentence ────────────────────────────────────
+        st.write(resp_text.value)
+
+        # 5. optional debug code
+        if debug:
+            codebox.code(resp_text.last_code_executed, language="python")
 
 # Footer
 st.markdown("---")

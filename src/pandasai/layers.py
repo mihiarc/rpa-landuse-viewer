@@ -41,8 +41,7 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="semanti
     # Output file paths
     output_files = {
         "reference": f"{output_dir}/reference.parquet",
-        "transitions_summary": f"{output_dir}/transitions_summary.parquet",
-        "transitions_changes_only": f"{output_dir}/transitions_changes_only.parquet",
+        "gross_change_ensemble_all": f"{output_dir}/gross_change_ensemble_all.parquet",
         "to_urban_transitions": f"{output_dir}/to_urban_transitions.parquet",
         "from_forest_transitions": f"{output_dir}/from_forest_transitions.parquet",
         "county_transitions": f"{output_dir}/county_transitions.parquet",
@@ -92,45 +91,15 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="semanti
             decades
     """).write_parquet(output_files["reference"])
     
-    # Create an aggregated transitions view
-    print("Creating transitions summary...")
-    conn.sql(f"""
-        SELECT 
-            s.scenario_name,
-            s.gcm, 
-            s.rcp,
-            s.ssp,
-            d.decade_name,
-            d.start_year,
-            d.end_year,
-            l1.landuse_type_name as from_category,
-            l2.landuse_type_name as to_category,
-            SUM(lc.area_hundreds_acres) as total_area
-        FROM landuse_change lc
-        JOIN scenarios s ON lc.scenario_id = s.scenario_id
-        JOIN decades d ON lc.decade_id = d.decade_id
-        JOIN landuse_types l1 ON lc.from_landuse = l1.landuse_type_code
-        JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
-        {scenario_filter}
-        GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp, 
-                d.decade_name, d.start_year, d.end_year, 
-                l1.landuse_type_name, l2.landuse_type_name
-    """).write_parquet(output_files["transitions_summary"])
-    
     # Create an aggregated transitions view with ONLY land use changes (excluding where from_category = to_category)
     print("Creating transitions summary for only changing land uses...")
     conn.sql(f"""
         SELECT 
-            s.scenario_name,
-            s.gcm, 
-            s.rcp,
-            s.ssp,
-            d.decade_name,
-            d.start_year,
-            d.end_year,
-            l1.landuse_type_name as from_category,
-            l2.landuse_type_name as to_category,
-            SUM(lc.area_hundreds_acres) as total_area
+            2020 as "Start Year",
+            2070 as "End Year",
+            l1.landuse_type_name as "From Land Use",
+            l2.landuse_type_name as "To Land Use",
+            SUM(lc.area_hundreds_acres) as "Total Area"
         FROM landuse_change lc
         JOIN scenarios s ON lc.scenario_id = s.scenario_id
         JOIN decades d ON lc.decade_id = d.decade_id
@@ -138,10 +107,10 @@ def extract_data_from_duckdb(db_path="data/database/rpa.db", output_dir="semanti
         JOIN landuse_types l2 ON lc.to_landuse = l2.landuse_type_code
         {scenario_filter}
         AND l1.landuse_type_name != l2.landuse_type_name
-        GROUP BY s.scenario_name, s.gcm, s.rcp, s.ssp, 
-                d.decade_name, d.start_year, d.end_year, 
+        AND s.scenario_name = 'ensemble_overall'
+        GROUP BY 
                 l1.landuse_type_name, l2.landuse_type_name
-    """).write_parquet(output_files["transitions_changes_only"])
+    """).write_parquet(output_files["gross_change_ensemble_all"])
     
     # Create transitions TO Urban only
     print("Creating transitions TO Urban summary...")
@@ -365,8 +334,7 @@ def create_semantic_layers(parquet_dir="semantic_layers/base_analysis", org_path
     
     # Paths for the parquet files
     reference_parquet = f"{parquet_dir}/reference.parquet"
-    transitions_parquet = f"{parquet_dir}/transitions_summary.parquet"
-    transitions_changes_parquet = f"{parquet_dir}/transitions_changes_only.parquet"
+    transitions_changes_parquet = f"{parquet_dir}/gross_change_ensemble_all.parquet"
     to_urban_parquet = f"{parquet_dir}/to_urban_transitions.parquet"
     from_forest_parquet = f"{parquet_dir}/from_forest_transitions.parquet"
     
@@ -380,9 +348,6 @@ def create_semantic_layers(parquet_dir="semantic_layers/base_analysis", org_path
     # Load the datasets
     print(f"Loading data from {reference_parquet}")
     reference_df = pd.read_parquet(reference_parquet)
-    
-    print(f"Loading data from {transitions_parquet}")
-    transitions_df = pd.read_parquet(transitions_parquet)
     
     print(f"Loading data from {transitions_changes_parquet}")
     transitions_changes_df = pd.read_parquet(transitions_changes_parquet)
@@ -415,16 +380,10 @@ def create_semantic_layers(parquet_dir="semantic_layers/base_analysis", org_path
         config={"llm": llm, "name": "Reference Information"}
     )
     
-    print("Creating semantic layer for transitions summary...")
-    transitions_smart_df = SmartDataframe(
-        transitions_df,
-        config={"llm": llm, "name": "Land Use Transitions"}
-    )
-    
     print("Creating semantic layer for transitions with changes only...")
     transitions_changes_smart_df = SmartDataframe(
         transitions_changes_df,
-        config={"llm": llm, "name": "Land Use Transitions - Changes Only"}
+        config={"llm": llm, "name": "Land Use Transitions - Ensemble Changes"}
     )
     
     print("Creating semantic layer for transitions TO Urban...")
@@ -474,7 +433,6 @@ def create_semantic_layers(parquet_dir="semantic_layers/base_analysis", org_path
     # Return the created SmartDataframes
     return {
         "reference": reference_smart_df,
-        "transitions": transitions_smart_df,
         "transitions_changes": transitions_changes_smart_df,
         "to_urban": to_urban_smart_df,
         "from_forest": from_forest_smart_df,
