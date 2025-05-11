@@ -1,0 +1,14 @@
+include LICENSE
+include README.md
+include README.rst
+include pyproject.toml
+
+recursive-include data/database *.sql
+recursive-include src *.sql
+
+global-exclude *.py[cod]
+global-exclude __pycache__
+global-exclude *.so
+global-exclude .DS_Store
+global-exclude .gitignore
+global-exclude *.log 
