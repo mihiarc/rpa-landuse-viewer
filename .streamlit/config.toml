@@ -1,9 +1,5 @@
 [server]
-# If you need specific server settings
-
-[runner]
-# Specify Python version in a way Streamlit might use
-pythonPath = "python3.11"
+# Server settings
 
 [theme]
 primaryColor="#3d7b6c"

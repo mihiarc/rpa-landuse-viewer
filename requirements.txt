@@ -1,25 +1,20 @@
-# Python version constraint - only works with Python 3.11.x
-# python>=3.11,<3.12
-
-# Core data processing libraries with Python 3.11 compatible versions
-numpy>=1.25.0,<2.0.0
-pandas==2.2
+# Core data processing libraries
+numpy>=1.22.0,<2.0.0
+pandas>=2.0.0,<2.3.0
 duckdb>=1.0.0
-pyarrow>=14.0.0
+pyarrow>=10.0.0
 
 # PandasAI and dependencies
-pandasai==3.0.0b17
-matplotlib>=3.7.1,<3.8
-httpx>=0.24.0
+pandasai>=2.0.0
+matplotlib>=3.5.0,<3.8.0
+httpx>=0.22.0
 python-dotenv>=1.0.0
-scipy>=1.10.1
+scipy>=1.8.0
 openai>=1.2,<2
 pandasai-openai>=0.1.5
 
 # Streamlit for interactive visualization
 streamlit>=1.31
 
-# Development tools
-pytest>=7.4.0
-flake8>=6.1.0
-black>=23.9.0
+# Utilities
+tqdm>=4.65.0
