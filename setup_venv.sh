@@ -30,12 +30,25 @@ fi
 # Create virtual environment if it doesn't exist or was removed
 if [ ! -d ".venv" ] || [ "$REBUILD_MODE" = true ]; then
     echo -e "${GREEN}Creating virtual environment with Python 3.11...${NC}"
-    python3 -m venv .venv
+    python3.11 -m venv .venv
 fi
 
 # Activate virtual environment
 echo -e "${GREEN}Activating virtual environment...${NC}"
 source .venv/bin/activate
+
+# Ensure OpenBLAS is installed (required for scipy)
+echo -e "${GREEN}Checking for OpenBLAS...${NC}"
+if ! brew list openblas &>/dev/null; then
+    echo -e "${YELLOW}Installing OpenBLAS via Homebrew (required for scipy)...${NC}"
+    brew install openblas
+fi
+
+# Set environment variables for building scientific packages
+echo -e "${GREEN}Setting up build environment for scientific packages...${NC}"
+export OPENBLAS="$(brew --prefix openblas)"
+export CFLAGS="-I$OPENBLAS/include"
+export LDFLAGS="-L$OPENBLAS/lib"
 
 # Install dependencies
 echo -e "${GREEN}Installing packages with pip...${NC}"

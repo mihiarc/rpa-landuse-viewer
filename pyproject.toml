@@ -30,6 +30,9 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "tqdm>=4.65.0",
     "scipy>=1.8.0",
+    "pandasai",
+    "openai",
+    "pandasai-openai",
 ]
 
 dev = [
