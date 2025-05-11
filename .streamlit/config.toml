@@ -1,5 +1,13 @@
 [server]
 # Server settings
+enableXsrfProtection = true
+enableCORS = false
+
+# Force pip instead of uv
+deploymentTarget = "pip"
+
+[browser]
+gatherUsageStats = false
 
 [theme]
 primaryColor="#3d7b6c"
