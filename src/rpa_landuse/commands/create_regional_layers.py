@@ -6,15 +6,11 @@ This script creates materialized views for regional aggregations of land use tra
 and exports them to Parquet format for external analysis.
 """
 
-import sys
 import argparse
 import logging
+import sys
 from pathlib import Path
-
-# Add the src directory to the Python path
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from src.db.region_repository import RegionRepository
+from rpa_landuse.db.region_repository import RegionRepository
 
 # Configure logging
 logging.basicConfig(
@@ -24,8 +20,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def parse_args():
-    """Parse command line arguments."""
+def main():
+    """Main function to run the regional analysis data generation."""
     parser = argparse.ArgumentParser(
         description="Generate regional analysis data from land use transitions"
     )
@@ -77,11 +73,8 @@ def parse_args():
         action="store_true",
         help="Only create materialized views without exporting"
     )
-    return parser.parse_args()
-
-def main():
-    """Main function to run the regional analysis data generation."""
-    args = parse_args()
+    
+    args = parser.parse_args()
     
     logger.info("Starting regional analysis data generation")
     
@@ -139,12 +132,13 @@ def main():
                     logger.info(f"Exported {total_files} scenario-partitioned Parquet files")
         
         logger.info("Regional analysis data generation completed successfully")
+        return 0
         
     except Exception as e:
         logger.error(f"Error in regional analysis data generation: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        sys.exit(1)
+        return 1
 
 if __name__ == "__main__":
-    main() 
+    sys.exit(main()) 

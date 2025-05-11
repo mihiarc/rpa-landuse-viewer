@@ -15,6 +15,7 @@ from pathlib import Path
 # Default database path
 DB_PATH = "data/database/rpa.db"
 
+
 def get_connection(db_path=DB_PATH):
     """Get a DuckDB connection."""
     try:
@@ -23,6 +24,7 @@ def get_connection(db_path=DB_PATH):
     except Exception as e:
         print(f"Error connecting to database: {e}")
         sys.exit(1)
+
 
 def execute_query(conn, query, params=None):
     """Execute a query and return the results as a DataFrame."""
@@ -38,6 +40,7 @@ def execute_query(conn, query, params=None):
             print(f"Parameters: {params}")
         return pd.DataFrame()
 
+
 def list_tables(conn):
     """List all tables in the database."""
     query = """
@@ -47,12 +50,14 @@ def list_tables(conn):
     """
     return execute_query(conn, query)
 
+
 def describe_table(conn, table_name):
     """Describe the structure of a table."""
     query = f"""
     PRAGMA table_info('{table_name}')
     """
     return execute_query(conn, query)
+
 
 def get_scenarios(conn):
     """Get all available scenarios."""
@@ -70,19 +75,21 @@ def get_scenarios(conn):
     """
     return execute_query(conn, query)
 
+
 def get_time_steps(conn):
     """Get all available time steps."""
     query = """
     SELECT 
-        time_step_id,
+        decade_id as time_step_id,
         start_year,
         end_year
     FROM 
-        time_steps
+        decades
     ORDER BY 
         start_year
     """
     return execute_query(conn, query)
+
 
 def get_land_use_types(conn):
     """Get all land use types."""
@@ -93,6 +100,7 @@ def get_land_use_types(conn):
     ORDER BY land_use_type
     """
     return execute_query(conn, query)
+
 
 def get_counties(conn, state=None):
     """Get all counties, optionally filtered by state."""
@@ -110,6 +118,7 @@ def get_counties(conn, state=None):
     
     query += " ORDER BY state_name, county_name"
     return execute_query(conn, query)
+
 
 def get_transitions(conn, scenario_id, time_step_id, fips_code=None, 
                    from_land_use=None, to_land_use=None, limit=20):
@@ -155,9 +164,11 @@ def get_transitions(conn, scenario_id, time_step_id, fips_code=None,
     
     return execute_query(conn, query, params)
 
+
 def run_custom_query(conn, query, params=None):
     """Run a custom SQL query."""
     return execute_query(conn, query, params)
+
 
 def interactive_mode(conn):
     """Run in interactive SQL query mode."""
@@ -185,7 +196,9 @@ def interactive_mode(conn):
         except Exception as e:
             print(f"Error: {e}")
 
+
 def main():
+    """Run the DuckDB query tool."""
     parser = argparse.ArgumentParser(description="RPA Land Use Database Query Tool")
     parser.add_argument('--db', default=DB_PATH, help='Path to DuckDB database file')
     
@@ -226,79 +239,58 @@ def main():
     transitions_parser.add_argument('--limit', type=int, default=20,
                                   help='Maximum number of results')
     
-    # Custom query command
-    query_parser = subparsers.add_parser('query', help='Run a custom SQL query')
-    query_parser.add_argument('sql', help='SQL query to run')
+    # Interactive mode command
+    subparsers.add_parser('interactive', help='Enter interactive query mode')
     
-    # Interactive mode
-    subparsers.add_parser('interactive', help='Enter interactive SQL query mode')
+    # SQL query command
+    sql_parser = subparsers.add_parser('sql', help='Run a SQL query')
+    sql_parser.add_argument('query', help='SQL query to execute')
     
     args = parser.parse_args()
     
-    # Connect to the database
     conn = get_connection(args.db)
     
-    try:
-        if args.command == 'tables':
-            result = list_tables(conn)
-            print("\nAvailable tables:")
-            print(result.to_string(index=False))
-            
-        elif args.command == 'describe':
-            result = describe_table(conn, args.table)
-            print(f"\nTable structure for '{args.table}':")
-            print(result.to_string(index=False))
-            
-        elif args.command == 'scenarios':
-            result = get_scenarios(conn)
-            print("\nAvailable scenarios:")
-            print(result.to_string(index=False))
-            
-        elif args.command == 'timesteps':
-            result = get_time_steps(conn)
-            print("\nAvailable time steps:")
-            print(result.to_string(index=False))
-            
-        elif args.command == 'landuse':
-            result = get_land_use_types(conn)
-            print("\nLand use types:")
-            print(result.to_string(index=False))
-            
-        elif args.command == 'counties':
-            result = get_counties(conn, args.state)
-            print("\nCounties:")
-            if len(result) > 50:
-                print(result.head(50).to_string(index=False))
-                print(f"\n... and {len(result) - 50} more counties")
-            else:
-                print(result.to_string(index=False))
-            
-        elif args.command == 'transitions':
-            result = get_transitions(
-                conn, 
-                args.scenario, 
-                args.timestep,
-                args.county,
-                args.from_land_use,
-                args.to_land_use,
-                args.limit
-            )
-            print("\nLand use transitions:")
-            print(result.to_string(index=False))
-            
-        elif args.command == 'query':
-            result = run_custom_query(conn, args.sql)
-            print("\nQuery results:")
-            print(result.to_string(index=False))
-            
-        elif args.command == 'interactive':
-            interactive_mode(conn)
-            
-        else:
-            parser.print_help()
-            
-    finally:
-        conn.close()
+    if args.command == 'tables':
+        df = list_tables(conn)
+        print(df.to_string(index=False))
+        
+    elif args.command == 'describe':
+        df = describe_table(conn, args.table)
+        print(df.to_string(index=False))
+        
+    elif args.command == 'scenarios':
+        df = get_scenarios(conn)
+        print(df.to_string(index=False))
+        
+    elif args.command == 'timesteps':
+        df = get_time_steps(conn)
+        print(df.to_string(index=False))
+        
+    elif args.command == 'landuse':
+        df = get_land_use_types(conn)
+        print(df.to_string(index=False))
+        
+    elif args.command == 'counties':
+        df = get_counties(conn, args.state)
+        print(df.to_string(index=False))
+        
+    elif args.command == 'transitions':
+        df = get_transitions(conn, args.scenario, args.timestep, args.county,
+                          args.from_land_use, args.to_land_use, args.limit)
+        print(df.to_string(index=False))
+        
+    elif args.command == 'interactive':
+        interactive_mode(conn)
+        
+    elif args.command == 'sql':
+        df = run_custom_query(conn, args.query)
+        print(df.to_string(index=False))
+        
+    else:
+        parser.print_help()
+    
+    conn.close()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main() 

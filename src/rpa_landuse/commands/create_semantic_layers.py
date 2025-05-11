@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 """
-Create semantic layers for RPA landuse data using the modular PandasAI implementation.
+Create semantic layers for RPA landuse data using PandasAI.
 
-This script calls the following modules:
-- src.db.region_repository.py
-- src.db.land_use_repository.py
-- src.db.analysis_repository.py
-- query_duckdb.py
-
+This script provides command-line functionality to create semantic layers 
+for analyzing the RPA land use projection data.
 """
 
 import os
 import argparse
-from typing import List
-from src.pandasai.layers import extract_data_from_duckdb, create_semantic_layers
+import sys
+from rpa_landuse.pandasai.layers import extract_data_from_duckdb, create_semantic_layers
 
 
 def main():
@@ -97,4 +93,4 @@ def main():
 
 
 if __name__ == "__main__":
-    exit(main()) 
+    sys.exit(main()) 

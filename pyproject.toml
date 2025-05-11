@@ -7,7 +7,7 @@ name = "rpa-landuse"
 version = "0.1.0"
 description = "RPA Land Use Projections Viewer"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 license = {text = "MIT"}
 authors = [
     {name = "USDA Forest Service: Resources Planning Act Assessment"}

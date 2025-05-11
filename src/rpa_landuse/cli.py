@@ -38,9 +38,24 @@ def create_semantic_layers(args):
         )
     
     create_semantic_layers(
-        data_dir=args.output_dir,
-        org_prefix=args.org_path
+        parquet_dir=args.output_dir,
+        org_path=args.org_path
     )
+
+def create_regional_layers(args):
+    """Create regional layers for data analysis."""
+    from rpa_landuse.commands.create_regional_layers import main as regional_main
+    sys.exit(regional_main())
+
+def query_database(args):
+    """Query the database using the command-line query tool."""
+    from rpa_landuse.commands.query_duckdb import main as query_main
+    sys.exit(query_main())
+
+def query_natural_language(args):
+    """Query the data using natural language with PandasAI."""
+    from rpa_landuse.commands.query_pandasai import main as query_pandasai_main
+    sys.exit(query_pandasai_main())
 
 def initialize_db(args):
     """Initialize the database schema and optionally import data."""
@@ -103,6 +118,21 @@ def main():
         help="Process all scenarios instead of only the default ensemble and RPA scenarios"
     )
     
+    # Regional layers command
+    regional_parser = subparsers.add_parser(
+        "regional-layers", help="Create regional aggregation layers for data analysis"
+    )
+    
+    # Query database command
+    query_parser = subparsers.add_parser(
+        "query", help="Query the database using the command-line tool"
+    )
+    
+    # PandasAI natural language query command
+    nl_query_parser = subparsers.add_parser(
+        "pandasai-query", help="Query data using natural language with PandasAI"
+    )
+    
     # DB init command
     db_parser = subparsers.add_parser("init-db", help="Initialize the database")
     db_parser.add_argument(
@@ -127,6 +157,12 @@ def main():
         run_app([])
     elif args.command == "semantic-layers":
         create_semantic_layers(args)
+    elif args.command == "regional-layers":
+        create_regional_layers(args)
+    elif args.command == "query":
+        query_database(args)
+    elif args.command == "pandasai-query":
+        query_natural_language(args)
     elif args.command == "init-db":
         initialize_db(args)
 
