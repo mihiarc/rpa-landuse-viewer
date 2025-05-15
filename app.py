@@ -3,8 +3,8 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import json
-import pandasai as pai
-from pandasai_openai import OpenAI
+# import pandasai as pai
+# from pandasai_openai import OpenAI
 
 # Set page configuration
 st.set_page_config(
@@ -64,7 +64,8 @@ def load_rpa_docs():
         return []
 
 # Main layout with tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Overview", "Data Explorer", "Urbanization Trends", "Forest Transitions", "Natural Language Query"])
+# tab1, tab2, tab3, tab4, tab5 = st.tabs(["Overview", "Data Explorer", "Urbanization Trends", "Forest Transitions", "Natural Language Query"])
+tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Data Explorer", "Urbanization Trends", "Forest Transitions"])
 
 # Load data
 try:
@@ -270,6 +271,8 @@ with tab4:
     st.pyplot(fig4)
         
 # ---- NATURAL LANGUAGE QUERY TAB ----
+# Commenting out Natural Language Query functionality to resolve deployment issues
+"""
 with tab5:
     st.header("Natural‑Language Query")
 
@@ -325,6 +328,7 @@ with tab5:
         # 5. optional debug code
         if debug:
             codebox.code(resp_text.last_code_executed, language="python")
+"""
 
 # Footer
 st.markdown("---")
