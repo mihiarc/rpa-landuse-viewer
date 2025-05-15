@@ -1,4 +1,4 @@
---prerelease=allow
+--pre
 
 # Core data processing libraries
 numpy
