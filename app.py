@@ -24,14 +24,32 @@ Explore how land use is expected to change across the United States from 2020 to
 # Load the parquet files
 @st.cache_data
 def load_parquet_data():
-    # Load raw data
-    raw_data = {
-        "Average Gross Change Across All Scenarios (2020-2070)": pd.read_parquet("semantic_layers/base_analysis/gross_change_ensemble_all.parquet"),
-        "Urbanization Trends By Decade": pd.read_parquet("semantic_layers/base_analysis/urbanization_trends.parquet"),
-        "Transitions to Urban Land": pd.read_parquet("semantic_layers/base_analysis/to_urban_transitions.parquet"),
-        "Transitions from Forest Land": pd.read_parquet("semantic_layers/base_analysis/from_forest_transitions.parquet"),
-        "County-Level Land Use Transitions": pd.read_parquet("semantic_layers/base_analysis/county_transitions.parquet")
-    }
+    # Define data directory - support both local and cloud paths
+    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "semantic_layers/base_analysis")
+    
+    try:
+        # Try to load raw data
+        raw_data = {
+            "Average Gross Change Across All Scenarios (2020-2070)": pd.read_parquet(os.path.join(data_dir, "gross_change_ensemble_all.parquet")),
+            "Urbanization Trends By Decade": pd.read_parquet(os.path.join(data_dir, "urbanization_trends.parquet")),
+            "Transitions to Urban Land": pd.read_parquet(os.path.join(data_dir, "to_urban_transitions.parquet")),
+            "Transitions from Forest Land": pd.read_parquet(os.path.join(data_dir, "from_forest_transitions.parquet")),
+            "County-Level Land Use Transitions": pd.read_parquet(os.path.join(data_dir, "county_transitions.parquet"))
+        }
+    except Exception as e:
+        st.error(f"Error loading data from {data_dir}: {e}")
+        # Fallback to direct paths for Streamlit Cloud
+        try:
+            raw_data = {
+                "Average Gross Change Across All Scenarios (2020-2070)": pd.read_parquet("semantic_layers/base_analysis/gross_change_ensemble_all.parquet"),
+                "Urbanization Trends By Decade": pd.read_parquet("semantic_layers/base_analysis/urbanization_trends.parquet"),
+                "Transitions to Urban Land": pd.read_parquet("semantic_layers/base_analysis/to_urban_transitions.parquet"),
+                "Transitions from Forest Land": pd.read_parquet("semantic_layers/base_analysis/from_forest_transitions.parquet"),
+                "County-Level Land Use Transitions": pd.read_parquet("semantic_layers/base_analysis/county_transitions.parquet")
+            }
+        except Exception as e2:
+            st.error(f"Error with fallback path: {e2}")
+            raise e2
     
     # Convert hundred acres to acres for all datasets
     data = {}
