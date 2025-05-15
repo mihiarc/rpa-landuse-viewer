@@ -1,4 +1,4 @@
---pre
+# --pre
 
 # Core data processing libraries
 numpy
@@ -20,6 +20,6 @@ python-dotenv
 scipy
 
 # AI dependencies
-openai
-pandasai>=3.0.0b0
-pandasai-openai
+# openai
+# pandasai>=3.0.0b0
+# pandasai-openai
